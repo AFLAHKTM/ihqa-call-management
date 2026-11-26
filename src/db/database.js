@@ -160,16 +160,20 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 `;
 
 const DEFAULT_SETTINGS = {
+  establishment_name: 'India Holy Quran Award — Kerala Coordination Office',
+  establishment_calling_hours: '09:00 AM - 06:00 PM IST',
+  establishment_start_hour: '9',
+  establishment_end_hour: '18',
   max_attempts: '3',
   auto_email_on_max_attempts: 'true',
-  auto_email_on_unattended: 'false',
+  auto_email_on_unattended: 'true',
   retry_interval_hours: '4',
   email_retry_max: '3',
   official_contact_phone: '+91 483 273 4500',
   official_contact_email: 'coordination@ihqakerala.org',
   official_website_url: 'https://ihqakerala.org',
-  telephony_provider: 'simulated', // simulated | exotel | twilio
-  email_provider: 'dev-json', // dev-json | smtp | ses
+  telephony_provider: 'device_phone', // device_phone | simulated | exotel | twilio
+  email_provider: 'dev-json', // dev-json | gmail | smtp | ses
   channel_email_enabled: 'true',
   channel_in_platform_enabled: 'true',
   channel_sms_enabled: 'false',

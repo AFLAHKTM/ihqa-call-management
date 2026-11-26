@@ -330,12 +330,23 @@
         <div class="grid-2">
           <div class="card">
             <div class="card-header">
-              <h3>Follow-up Rules, Email &amp; Channel Configuration</h3>
-              <button id="run-jobs-btn" class="btn btn-outline btn-sm">Run Background Sweep Now</button>
+              <h3>Establishment, Calling &amp; Email Settings</h3>
+              <div class="header-actions">
+                <button type="button" id="apply-est-preset-btn" class="btn btn-outline btn-sm admin-only">Use Office Defaults</button>
+                <button id="run-jobs-btn" class="btn btn-outline btn-sm">Run Background Sweep Now</button>
+              </div>
             </div>
             <form id="settings-form" class="settings-form">
               <div class="form-row">
-                <label>Max Attempts Before Email <input type="number" id="s-max-attempts" min="1" max="10" /></label>
+                <label>Establishment / Office Name <input type="text" id="s-est-name" /></label>
+                <label>Office Calling Hours (shown in Emails) <input type="text" id="s-est-hours" placeholder="09:00 AM - 06:00 PM IST" /></label>
+              </div>
+              <div class="form-row">
+                <label>Office Start Hour (24h, IST) <input type="number" id="s-est-start" min="0" max="23" /></label>
+                <label>Office End Hour (24h, IST) <input type="number" id="s-est-end" min="1" max="23" /></label>
+              </div>
+              <div class="form-row">
+                <label>Max Attempts Before Final Notice <input type="number" id="s-max-attempts" min="1" max="10" /></label>
                 <label>Retry Interval (Hours) <input type="number" id="s-retry-hours" min="1" max="72" /></label>
               </div>
               <div class="form-row">
@@ -343,8 +354,9 @@
                 <label>Data Retention (Days) <input type="number" id="s-retention-days" min="30" max="3650" /></label>
               </div>
               <div class="form-row">
-                <label>Telephony Provider
+                <label>Calling Mode / Provider
                   <select id="s-telephony-provider">
+                    <option value="device_phone">Establishment / Office Phones (Direct Click-to-Call)</option>
                     <option value="simulated">Simulated Cloud Sandbox</option>
                     <option value="exotel">Exotel (India Cloud Telephony)</option>
                     <option value="twilio">Twilio Programmable Voice</option>

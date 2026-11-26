@@ -32,6 +32,10 @@ router.put('/', requireRole(ROLES.ADMIN), (req, res) => {
   const db = getDb();
   const updates = req.body || {};
   const allowedKeys = new Set([
+    'establishment_name',
+    'establishment_calling_hours',
+    'establishment_start_hour',
+    'establishment_end_hour',
     'max_attempts',
     'auto_email_on_max_attempts',
     'auto_email_on_unattended',

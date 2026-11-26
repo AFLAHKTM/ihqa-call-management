@@ -39,6 +39,8 @@ function getTransporter(settings) {
 }
 
 function buildUnattendedEmailBody(student, settings, attemptCount = 3) {
+  const estName = settings.establishment_name || 'India Holy Quran Award — Kerala Coordination Office';
+  const callingHours = settings.establishment_calling_hours || '09:00 AM - 06:00 PM IST';
   const phone = settings.official_contact_phone || '+91 483 273 4500';
   const email = settings.official_contact_email || 'coordination@ihqakerala.org';
   const website = settings.official_website_url || 'https://ihqakerala.org';
@@ -62,10 +64,10 @@ Your participation is important to us.
 
 Thank you.
 
-India Holy Quran Award
-Kerala Coordination Team
+${estName}
 Official Contact Phone: ${phone}
 Official Email: ${email}
+Office Calling Hours: ${callingHours}
 Website: ${website}`;
 }
 

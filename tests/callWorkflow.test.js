@@ -70,6 +70,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('executes 3-attempt rule and sends personalized email once without duplicates', async () => {
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     const sid = createTestStudent({ reg: 'TEST-REG-002', email: 'ali.family@example.org' });
 
     const r1 = await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'No Answer', remarks: 'Try 1' }, db);
@@ -96,6 +97,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('stops unreachable workflow on successful contact', async () => {
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     const sid = createTestStudent({ reg: 'TEST-REG-003' });
     await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'No Answer' }, db);
     const r2 = await logCallAttempt(
@@ -154,6 +156,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('retries temporary email failures and supports admin resend', async () => {
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     let failMode = true;
     setCustomTransporter({
       async sendMail(mail) {
@@ -189,6 +192,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('respects configurable max_attempts threshold and background overdue sweep', async () => {
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     db.prepare("UPDATE system_settings SET value = '2' WHERE key = 'max_attempts'").run();
     const sid = createTestStudent({ reg: 'TEST-REG-008', email: 'two.attempts@example.org' });
     await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'No Answer' }, db);

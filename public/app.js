@@ -602,11 +602,15 @@ async function loadSettingsAndAudit() {
   const [cfg, audit] = await Promise.all([api('/api/settings'), api('/api/settings/audit-logs?limit=80')]);
   const s = cfg.settings;
 
+  document.getElementById('s-est-name').value = s.establishment_name || 'India Holy Quran Award — Kerala Coordination Office';
+  document.getElementById('s-est-hours').value = s.establishment_calling_hours || '09:00 AM - 06:00 PM IST';
+  document.getElementById('s-est-start').value = s.establishment_start_hour || 9;
+  document.getElementById('s-est-end').value = s.establishment_end_hour || 18;
   document.getElementById('s-max-attempts').value = s.max_attempts || 3;
   document.getElementById('s-retry-hours').value = s.retry_interval_hours || 4;
   document.getElementById('s-email-retries').value = s.email_retry_max || 3;
   document.getElementById('s-retention-days').value = s.data_retention_days || 365;
-  document.getElementById('s-telephony-provider').value = s.telephony_provider || 'simulated';
+  document.getElementById('s-telephony-provider').value = s.telephony_provider || 'device_phone';
   document.getElementById('s-email-provider').value = s.email_provider || 'dev-json';
   document.getElementById('s-official-phone').value = s.official_contact_phone || '';
   document.getElementById('s-official-email').value = s.official_contact_email || '';
@@ -1075,11 +1079,28 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = `/api/reports/${state.activeReport}/export?format=excel`;
   });
 
+  document.getElementById('apply-est-preset-btn')?.addEventListener('click', () => {
+    document.getElementById('s-est-name').value = 'India Holy Quran Award — Kerala Coordination Office';
+    document.getElementById('s-est-hours').value = '09:00 AM - 06:00 PM IST';
+    document.getElementById('s-est-start').value = 9;
+    document.getElementById('s-est-end').value = 18;
+    document.getElementById('s-max-attempts').value = 3;
+    document.getElementById('s-retry-hours').value = 4;
+    document.getElementById('s-telephony-provider').value = 'device_phone';
+    document.getElementById('s-auto-email').checked = true;
+    document.getElementById('s-auto-unattended-email').checked = true;
+    showToast('Loaded Establishment Office defaults — click Save Configuration to apply');
+  });
+
   document.getElementById('settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     await api('/api/settings', {
       method: 'PUT',
       body: JSON.stringify({
+        establishment_name: document.getElementById('s-est-name').value,
+        establishment_calling_hours: document.getElementById('s-est-hours').value,
+        establishment_start_hour: document.getElementById('s-est-start').value,
+        establishment_end_hour: document.getElementById('s-est-end').value,
         max_attempts: document.getElementById('s-max-attempts').value,
         retry_interval_hours: document.getElementById('s-retry-hours').value,
         email_retry_max: document.getElementById('s-email-retries').value,

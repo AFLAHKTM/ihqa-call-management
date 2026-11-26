@@ -320,6 +320,29 @@ function shuffleBySection(
   };
 }
 
+function computeNextEstablishmentFollowup(retryHours = 4, startHour = 9, endHour = 18) {
+  const istOffsetMs = 5.5 * 3600 * 1000;
+  const candidateUtcMs = Date.now() + Number(retryHours || 4) * 3600 * 1000;
+  const candidateIst = new Date(candidateUtcMs + istOffsetMs);
+  const istHour = candidateIst.getUTCHours();
+
+  let finalUtcMs = candidateUtcMs;
+  if (istHour < startHour) {
+    // Schedule for today at startHour:30 IST
+    const morningIst = new Date(candidateIst);
+    morningIst.setUTCHours(startHour, 30, 0, 0);
+    finalUtcMs = morningIst.getTime() - istOffsetMs;
+  } else if (istHour >= endHour) {
+    // Past office closing hour -> next morning at startHour:30 IST
+    const nextMorningIst = new Date(candidateIst);
+    nextMorningIst.setUTCDate(nextMorningIst.getUTCDate() + 1);
+    nextMorningIst.setUTCHours(startHour, 30, 0, 0);
+    finalUtcMs = nextMorningIst.getTime() - istOffsetMs;
+  }
+
+  return new Date(finalUtcMs).toISOString().slice(0, 19).replace('T', ' ');
+}
+
 async function logCallAttempt(
   {
     studentId,
@@ -491,8 +514,11 @@ async function logCallAttempt(
         }
       } else if (newValidCount === 1) {
         if (!nextFollowupAt) {
-          const retryHours = Number(settings.retry_interval_hours || 4);
-          nextFollowupAt = new Date(Date.now() + retryHours * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+          nextFollowupAt = computeNextEstablishmentFollowup(
+            Number(settings.retry_interval_hours || 4),
+            Number(settings.establishment_start_hour || 9),
+            Number(settings.establishment_end_hour || 18)
+          );
         }
         nextStatus = 'Pending Second Call';
         if (
@@ -504,8 +530,11 @@ async function logCallAttempt(
         }
       } else if (newValidCount === 2) {
         if (!nextFollowupAt) {
-          const retryHours = Number(settings.retry_interval_hours || 4);
-          nextFollowupAt = new Date(Date.now() + retryHours * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+          nextFollowupAt = computeNextEstablishmentFollowup(
+            Number(settings.retry_interval_hours || 4),
+            Number(settings.establishment_start_hour || 9),
+            Number(settings.establishment_end_hour || 18)
+          );
         }
         nextStatus = 'Pending Third Call';
         if (
