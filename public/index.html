@@ -477,56 +477,65 @@
         </div>
 
         <!-- Log Call Outcome Form -->
-        <form id="log-call-form" class="call-form">
-          <h4>Step 2: Tap What Happened on the Call</h4>
+        <div class="call-form">
+          <h4>Step 2: Click Attend or Unattend to Save</h4>
           <input type="hidden" id="log-call-session-id" />
 
-          <div class="quick-outcomes" id="quick-outcomes">
-            <button type="button" class="outcome-btn" data-outcome="Successfully Contacted">✅ Contacted</button>
-            <button type="button" class="outcome-btn" data-outcome="No Answer">📵 No Answer</button>
-            <button type="button" class="outcome-btn" data-outcome="Not Reachable">📡 Not Reachable</button>
-            <button type="button" class="outcome-btn" data-outcome="Switched Off">🔋 Switched Off</button>
-            <button type="button" class="outcome-btn" data-outcome="Callback Requested">📅 Callback</button>
-            <button type="button" class="outcome-btn" data-outcome="Invalid / Wrong Number">❌ Wrong Number</button>
+          <div class="attend-unattend-grid">
+            <button type="button" id="quick-attend-btn" class="btn btn-attend">✅ Attend</button>
+            <button type="button" id="quick-unattend-btn" class="btn btn-unattend">❌ Unattend</button>
           </div>
 
-          <div class="form-row">
-            <label>Contact Called
-              <select id="log-contact-type">
-                <option value="coordinator">Supervisor / Contact</option>
-                <option value="student">Student Mobile</option>
-                <option value="parent">Parent Mobile</option>
-              </select>
-            </label>
-            <label>Call Outcome *
-              <select id="log-outcome" required></select>
-            </label>
-          </div>
-          <div class="form-row">
-            <label>Next Follow-up (optional)
-              <input type="datetime-local" id="log-followup-date" />
-            </label>
-            <label>Duration in seconds (optional)
-              <input type="number" id="log-duration" min="0" placeholder="e.g. 95" />
-            </label>
-          </div>
-          <label>Quick Note (optional)
-            <textarea id="log-remarks" rows="2" placeholder="Tap a quick note below or type..."></textarea>
-          </label>
-          <div class="quick-notes">
-            <button type="button" class="chip" data-note="Informed about the examination date.">Exam date informed</button>
-            <button type="button" class="chip" data-note="Parent requested another call tomorrow.">Callback tomorrow</button>
-            <button type="button" class="chip" data-note="Student confirmed participation.">Confirmed participation</button>
-            <button type="button" class="chip" data-note="Number switched off.">Switched off</button>
-            <button type="button" class="chip" data-note="Wrong contact number.">Wrong number</button>
-          </div>
-          <label class="chk"><input type="checkbox" id="log-complete-followup" /> Mark Follow-up Completed</label>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-lg">Save Call Result</button>
-            <button type="button" id="send-unattended-now-btn" class="btn btn-outline btn-sm">📧 Send Unattended Email</button>
-            <button type="button" id="cancel-initiation-btn" class="btn btn-outline btn-sm">Accidental Tap (Do Not Count)</button>
-          </div>
-        </form>
+          <details class="mini-edit-details" style="margin-top:10px">
+            <summary>More Options (Callback / Wrong Number / Note)</summary>
+            <form id="log-call-form" class="mini-edit-form" style="border:none;padding:10px 0 0">
+              <div class="quick-outcomes" id="quick-outcomes">
+                <button type="button" class="outcome-btn" data-outcome="Successfully Contacted">✅ Attend</button>
+                <button type="button" class="outcome-btn" data-outcome="No Answer">❌ Unattend</button>
+                <button type="button" class="outcome-btn" data-outcome="Not Reachable">📡 Not Reachable</button>
+                <button type="button" class="outcome-btn" data-outcome="Switched Off">🔋 Switched Off</button>
+                <button type="button" class="outcome-btn" data-outcome="Callback Requested">📅 Callback</button>
+                <button type="button" class="outcome-btn" data-outcome="Invalid / Wrong Number">❌ Wrong Number</button>
+              </div>
+              <div class="form-row">
+                <label>Contact Called
+                  <select id="log-contact-type">
+                    <option value="coordinator">Supervisor / Contact</option>
+                    <option value="student">Student Mobile</option>
+                    <option value="parent">Parent Mobile</option>
+                  </select>
+                </label>
+                <label>Call Outcome *
+                  <select id="log-outcome" required></select>
+                </label>
+              </div>
+              <div class="form-row">
+                <label>Next Follow-up (optional)
+                  <input type="datetime-local" id="log-followup-date" />
+                </label>
+                <label>Duration in seconds (optional)
+                  <input type="number" id="log-duration" min="0" placeholder="e.g. 95" />
+                </label>
+              </div>
+              <label>Quick Note (optional)
+                <textarea id="log-remarks" rows="2" placeholder="Tap a quick note below or type..."></textarea>
+              </label>
+              <div class="quick-notes">
+                <button type="button" class="chip" data-note="Informed about the examination date.">Exam date informed</button>
+                <button type="button" class="chip" data-note="Parent requested another call tomorrow.">Callback tomorrow</button>
+                <button type="button" class="chip" data-note="Student confirmed participation.">Confirmed participation</button>
+                <button type="button" class="chip" data-note="Number switched off.">Switched off</button>
+                <button type="button" class="chip" data-note="Wrong contact number.">Wrong number</button>
+              </div>
+              <label class="chk"><input type="checkbox" id="log-complete-followup" /> Mark Follow-up Completed</label>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-lg">Save Call Result</button>
+                <button type="button" id="send-unattended-now-btn" class="btn btn-outline btn-sm">📧 Send Unattended Email</button>
+                <button type="button" id="cancel-initiation-btn" class="btn btn-outline btn-sm">Accidental Tap (Do Not Count)</button>
+              </div>
+            </form>
+          </details>
+        </div>
 
         <!-- Contact Correction Mini Form (Collapsible for simplicity) -->
         <details class="mini-edit-details">

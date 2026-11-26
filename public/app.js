@@ -332,7 +332,9 @@ function renderStudentsTable(rows) {
             ${cleanPhone
               ? `<a class="btn btn-primary btn-sm row-phone-call" data-id="${primary.id}" data-contact="${primaryType}" href="tel:${escapeHtml(cleanPhone)}">📞 Phone Call</a>`
               : ''}
-            <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${primary.id}">Log Call</button>
+            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted">✅ Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="No Answer">❌ Unattend</button>
+            <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${primary.id}">Details</button>
           </div>
         </td>
       </tr>`;
@@ -341,6 +343,22 @@ function renderStudentsTable(rows) {
 
   document.querySelectorAll('.open-desk-btn').forEach((btn) => {
     btn.addEventListener('click', () => openCallingDesk(Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.quick-save-row-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ids = String(btn.dataset.ids || '')
+        .split(',')
+        .filter(Boolean)
+        .map(Number);
+      const outcome = btn.dataset.outcome;
+      const contactType = btn.dataset.contact || 'coordinator';
+      btn.disabled = true;
+      try {
+        await quickSaveCallOutcome(ids, outcome, contactType);
+      } finally {
+        btn.disabled = false;
+      }
+    });
   });
   document.querySelectorAll('.row-phone-call').forEach((link) => {
     link.addEventListener('click', () => {
@@ -367,6 +385,38 @@ function updateBulkBar() {
   const count = state.selectedStudentIds.size;
   document.getElementById('bulk-selected-count').textContent = `${count} selected`;
   bar.classList.toggle('hidden', count === 0);
+}
+
+async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coordinator', callSessionId = null) {
+  try {
+    let emailSent = false;
+    for (const sid of studentIds) {
+      const res = await api(`/api/students/${sid}/calls`, {
+        method: 'POST',
+        body: JSON.stringify({
+          callSessionId: sid === studentIds[0] ? callSessionId : null,
+          contactType,
+          callOutcome,
+          remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : 'Call Unattended',
+          isValidAttempt: true,
+        }),
+      });
+      if (res.emailResult?.emailRecord?.delivery_status === 'SENT') {
+        emailSent = true;
+      }
+    }
+    if (callOutcome === 'Successfully Contacted') {
+      showToast('✅ Saved: Attended');
+    } else {
+      showToast(emailSent ? '❌ Saved: Unattended & Auto-email sent' : '❌ Saved: Unattended');
+    }
+    await loadAllData();
+    if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
+      await openCallingDesk(state.activeStudentId);
+    }
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 
 async function startPhoneCallFlow(studentId, contactType = 'student') {
@@ -934,6 +984,24 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(err.message);
       }
     });
+  });
+
+  document.getElementById('quick-attend-btn').addEventListener('click', async () => {
+    await quickSaveCallOutcome(
+      [state.activeStudentId],
+      'Successfully Contacted',
+      document.getElementById('log-contact-type').value || 'coordinator',
+      document.getElementById('log-call-session-id').value || null
+    );
+  });
+
+  document.getElementById('quick-unattend-btn').addEventListener('click', async () => {
+    await quickSaveCallOutcome(
+      [state.activeStudentId],
+      'No Answer',
+      document.getElementById('log-contact-type').value || 'coordinator',
+      document.getElementById('log-call-session-id').value || null
+    );
   });
 
   document.querySelectorAll('.chip').forEach((chip) => {

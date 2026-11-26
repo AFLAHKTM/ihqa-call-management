@@ -157,6 +157,39 @@ body {
 }
 .cat-log-link:hover { background: var(--emerald-50); border-color: var(--emerald-700); }
 
+.attend-unattend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.btn-attend {
+  background: #067647;
+  color: #fff;
+  min-height: 44px;
+  font-size: 14px;
+}
+.btn-attend:hover { background: #05603a; }
+.btn-unattend {
+  background: #fef3f2;
+  color: #b42318;
+  border-color: #fecdca;
+  min-height: 44px;
+  font-size: 14px;
+}
+.btn-unattend:hover { background: #fee4e2; border-color: #fda29b; }
+.row-attend-btn {
+  background: #ecfdf3;
+  color: #067647;
+  border-color: #abefc6;
+}
+.row-attend-btn:hover { background: #d1fadf; }
+.row-unattend-btn {
+  background: #fef3f2;
+  color: #b42318;
+  border-color: #fecdca;
+}
+.row-unattend-btn:hover { background: #fee4e2; }
+
 input, select, textarea {
   width: 100%;
   padding: 8px 10px;
@@ -613,6 +646,8 @@ input:focus, select:focus, textarea:focus {
   table.mobile-cards td[data-label="Action"]::before { display: none; }
   .row-action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .row-action-btns .btn { width: 100%; min-height: 44px; font-size: 14px; }
+  .row-action-btns .row-phone-call { grid-column: 1 / -1; }
+  .row-action-btns .open-desk-btn { grid-column: 1 / -1; min-height: 36px; font-size: 12px; }
 
   /* Full-screen Calling Desk on mobile */
   .drawer-panel { max-width: 100vw; }
