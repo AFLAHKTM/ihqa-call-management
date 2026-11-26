@@ -808,10 +808,10 @@ async function loadSettingsAndAudit() {
   document.getElementById('s-email-retries').value = s.email_retry_max || 3;
   document.getElementById('s-retention-days').value = s.data_retention_days || 365;
   document.getElementById('s-telephony-provider').value = s.telephony_provider || 'device_phone';
-  document.getElementById('s-email-provider').value = s.email_provider || 'dev-json';
-  document.getElementById('s-smtp-host').value = s.smtp_host || '';
+  document.getElementById('s-email-provider').value = s.email_provider || 'gmail';
+  document.getElementById('s-smtp-host').value = s.smtp_host || 'smtp.gmail.com';
   document.getElementById('s-smtp-port').value = s.smtp_port || 587;
-  document.getElementById('s-smtp-user').value = s.smtp_user || '';
+  document.getElementById('s-smtp-user').value = s.smtp_user || 'muhammedaflah295@gmail.com';
   document.getElementById('s-smtp-pass').value = s.smtp_pass || '';
   document.getElementById('s-smtp-secure').checked = s.smtp_secure === 'true';
   document.getElementById('s-email-from').value = s.email_from || 'India Holy Quran Award <info@indiaquranaward.com>';

@@ -16,31 +16,38 @@ function getTransporter(settings) {
     customTransporter.isSimulated = false;
     return customTransporter;
   }
-  const provider = settings.email_provider || config.email.provider || 'dev-json';
+  let provider = settings.email_provider || config.email.provider || 'dev-json';
   const user = settings.smtp_user || config.email.user;
   const pass = settings.smtp_pass || config.email.pass;
-  const host = settings.smtp_host || config.email.host;
+  const host = settings.smtp_host || config.email.host || (user?.includes('@gmail.com') ? 'smtp.gmail.com' : null);
   const port = Number(settings.smtp_port || config.email.port || 587);
   const secure = String(settings.smtp_secure ?? config.email.secure) === 'true';
 
-  if (provider === 'gmail' && user && pass) {
-    const t = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-    });
-    t.isSimulated = false;
-    return t;
+  if (user && pass) {
+    // Gmail / Google Workspace
+    if (provider === 'gmail' || user.includes('@gmail.com') || host?.includes('gmail.com')) {
+      const t = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: secure ? 465 : 587,
+        secure: secure,
+        auth: { user, pass },
+      });
+      t.isSimulated = false;
+      return t;
+    }
+    // Generic SMTP or Amazon SES
+    if (host) {
+      const t = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+      });
+      t.isSimulated = false;
+      return t;
+    }
   }
-  if ((provider === 'smtp' || provider === 'ses') && host && user && pass) {
-    const t = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
-    t.isSimulated = false;
-    return t;
-  }
+
   // Safe local/dev transport using nodemailer jsonTransport
   const t = nodemailer.createTransport({ jsonTransport: true });
   t.isSimulated = true;

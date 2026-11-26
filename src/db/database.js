@@ -174,7 +174,10 @@ const DEFAULT_SETTINGS = {
   official_website_url: 'https://indiaquranaward.com',
   email_from: 'India Holy Quran Award <info@indiaquranaward.com>',
   telephony_provider: 'device_phone', // device_phone | simulated | exotel | twilio
-  email_provider: 'dev-json', // dev-json | gmail | smtp | ses
+  email_provider: 'gmail', // dev-json | gmail | smtp | ses
+  smtp_host: 'smtp.gmail.com',
+  smtp_port: '587',
+  smtp_user: 'muhammedaflah295@gmail.com',
   channel_email_enabled: 'true',
   channel_in_platform_enabled: 'true',
   channel_sms_enabled: 'false',

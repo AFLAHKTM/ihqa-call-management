@@ -116,8 +116,12 @@ router.post('/test-email', requireRole(ROLES.ADMIN), async (req, res) => {
   const transporter = getTransporter(settings);
 
   if (transporter.isSimulated) {
+    const isGmail = (settings.smtp_user || '').includes('@gmail.com');
+    const msg = isGmail
+      ? `Cannot deliver real email: Google App Password for ${settings.smtp_user} is missing. Please enter your 16-character Google App Password in the Password field below, click "Save Configuration", and test again.`
+      : 'Cannot deliver real email: SMTP Password is missing. Please enter your SMTP Password in the field below, click "Save Configuration", and test again.';
     return res.status(400).json({
-      error: 'Cannot deliver real email: Email Provider is currently in Dev Simulation mode (dev-json) or SMTP credentials (Username / Password) are missing. Please enter your SMTP Host, Username and App Password below, click Save Configuration, and test again.',
+      error: msg,
       simulated: true,
     });
   }
@@ -134,8 +138,12 @@ router.post('/test-email', requireRole(ROLES.ADMIN), async (req, res) => {
     res.json({ ok: true, message: `Real test email successfully sent to ${targetEmail}!`, result });
   } catch (err) {
     console.error('SMTP test email failed:', err);
+    let help = err.message || 'Could not send test email';
+    if (help.includes('535') || help.toLowerCase().includes('badcredentials') || help.toLowerCase().includes('username and password not accepted')) {
+      help = 'Authentication failed (Invalid Username or Password). If using Gmail, Google requires a 16-character App Password (not your Gmail login password). Generate it at: Google Account > Security > 2-Step Verification > App passwords.';
+    }
     res.status(500).json({
-      error: `SMTP connection failed: ${err.message || 'Could not send test email'}. Check your SMTP Host, Port, Username and Password / App Password.`,
+      error: `SMTP connection failed: ${help}`,
     });
   }
 });

@@ -379,7 +379,14 @@
                 </div>
                 <div class="form-row">
                   <label>SMTP Username / Email <input type="text" id="s-smtp-user" placeholder="info@indiaquranaward.com" /></label>
-                  <label>SMTP Password / App Password <input type="password" id="s-smtp-pass" placeholder="Enter password or App Password" autocomplete="new-password" /></label>
+                  <label>SMTP Password / App Password <input type="password" id="s-smtp-pass" placeholder="Enter 16-character App Password" autocomplete="new-password" /></label>
+                </div>
+                <div id="gmail-hint-box" class="small" style="margin-top:-6px;margin-bottom:12px;background:#eff8ff;border:1px solid #b2ddff;border-radius:6px;padding:10px 14px;color:#175cd3;line-height:1.5">
+                  💡 <strong>Using Gmail for SMTP (e.g. <code>muhammedaflah295@gmail.com</code>)?</strong><br>
+                  Google requires a 16-character <strong>App Password</strong> (your regular Gmail login password will be rejected by Google's mail server).<br>
+                  1. Visit <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener" style="text-decoration:underline;font-weight:700;color:#175cd3">myaccount.google.com/apppasswords</a> (enable 2-Step Verification if not yet active)<br>
+                  2. Create an App password named <strong>IHQA Call Management</strong><br>
+                  3. Copy the 16-letter password, paste it in the <strong>SMTP Password</strong> box above, click <strong>Save Configuration</strong>, and click <strong>Send Test Email</strong>.
                 </div>
                 <div class="form-row" style="align-items:center">
                   <label class="chk" style="margin:0"><input type="checkbox" id="s-smtp-secure" /> SSL/TLS Mode (Port 465 SSL; uncheck for 587 STARTTLS)</label>
