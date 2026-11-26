@@ -57,7 +57,7 @@ function getDashboardStats(filters = {}, user = null, db = getDb()) {
     .prepare(
       `SELECT COUNT(*) as c FROM students s
        ${whereClause ? `${whereClause} AND` : 'WHERE'}
-       s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Call Disconnected')`
+       s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected')`
     )
     .get(...params).c;
 
@@ -290,7 +290,7 @@ function generateReport(reportType, user = null, db = getDb()) {
                COUNT(*) AS "Total Valid Calls",
                SUM(CASE WHEN c.call_outcome IN ('Successfully Contacted','Parent Contacted','Student Contacted','Information Communicated') THEN 1 ELSE 0 END) AS "Successful Outcomes",
                SUM(CASE WHEN c.call_outcome = 'Callback Requested' THEN 1 ELSE 0 END) AS "Callbacks Scheduled",
-               SUM(CASE WHEN c.call_outcome IN ('No Answer','Not Reachable','Switched Off','Busy','Call Disconnected') THEN 1 ELSE 0 END) AS "Unreachable Attempts",
+               SUM(CASE WHEN c.call_outcome IN ('No Answer','Not Reachable','Switched Off','Busy','Temporary Unavailable','Call Disconnected') THEN 1 ELSE 0 END) AS "Unreachable Attempts",
                SUM(CASE WHEN c.call_outcome = 'Invalid / Wrong Number' THEN 1 ELSE 0 END) AS "Wrong Numbers"
              FROM call_attempts c
              JOIN students s ON s.id = c.student_id

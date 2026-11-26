@@ -660,6 +660,23 @@
     </div>
   </div>
 
+  <!-- MODAL: Unattend Reason Picker -->
+  <div id="unattend-modal" class="modal hidden">
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-header">
+        <h3>Select Unattend Reason</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="close-unattend-modal">Cancel</button>
+      </div>
+      <div id="unattend-target-label" class="muted small" style="margin-bottom:12px"></div>
+      <div class="unattend-choices">
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Switched Off">🔋 Switch Off</button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Not Reachable">📡 Unreachable</button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Busy">📞 Busy</button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Temporary Unavailable">⏳ Temporary Unavailable</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <script src="/app.js"></script>
 </body>

@@ -359,7 +359,7 @@ async function sendAutoEmailToUnattendedStudents(actorUser = null, db = getDb())
     .prepare(
       `SELECT id FROM students
        WHERE (
-         last_call_outcome IN ('No Answer', 'Not Reachable', 'Switched Off', 'Busy', 'Call Disconnected')
+         last_call_outcome IN ('No Answer', 'Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected')
          OR communication_status IN ('Attempt 1 Completed', 'Pending Second Call', 'Attempt 2 Completed', 'Pending Third Call', 'Attempt 3 Completed')
        )
        AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')

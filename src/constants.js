@@ -10,6 +10,7 @@ const CALL_OUTCOMES = [
   'Not Reachable',
   'Switched Off',
   'Busy',
+  'Temporary Unavailable',
   'Call Disconnected',
   'Invalid / Wrong Number',
   'Callback Requested',
@@ -47,6 +48,7 @@ const UNREACHABLE_OUTCOMES = new Set([
   'Not Reachable',
   'Switched Off',
   'Busy',
+  'Temporary Unavailable',
   'Call Disconnected',
 ]);
 

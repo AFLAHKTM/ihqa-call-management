@@ -190,6 +190,25 @@ body {
 }
 .row-unattend-btn:hover { background: #fee4e2; }
 
+.unattend-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.unattend-choice-btn {
+  background: #fef3f2;
+  color: #912018;
+  border: 1px solid #fecdca;
+  min-height: 52px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+.unattend-choice-btn:hover { background: #fee4e2; border-color: #f97066; }
+@media (max-width: 480px) {
+  .unattend-choices { grid-template-columns: 1fr; }
+}
+
 input, select, textarea {
   width: 100%;
   padding: 8px 10px;

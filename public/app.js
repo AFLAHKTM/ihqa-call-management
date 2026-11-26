@@ -333,7 +333,7 @@ function renderStudentsTable(rows) {
               ? `<a class="btn btn-primary btn-sm row-phone-call" data-id="${primary.id}" data-contact="${primaryType}" href="tel:${escapeHtml(cleanPhone)}">📞 Phone Call</a>`
               : ''}
             <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted">✅ Attend</button>
-            <button type="button" class="btn btn-sm row-unattend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="No Answer">❌ Unattend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}">❌ Unattend</button>
             <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${primary.id}">Details</button>
           </div>
         </td>
@@ -358,6 +358,20 @@ function renderStudentsTable(rows) {
       } finally {
         btn.disabled = false;
       }
+    });
+  });
+  document.querySelectorAll('.open-unattend-row-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ids = String(btn.dataset.ids || '')
+        .split(',')
+        .filter(Boolean)
+        .map(Number);
+      openUnattendPopup({
+        studentIds: ids,
+        contactType: btn.dataset.contact || 'coordinator',
+        callSessionId: null,
+        label: btn.dataset.label || '',
+      });
     });
   });
   document.querySelectorAll('.row-phone-call').forEach((link) => {
@@ -387,6 +401,14 @@ function updateBulkBar() {
   bar.classList.toggle('hidden', count === 0);
 }
 
+function openUnattendPopup({ studentIds, contactType = 'coordinator', callSessionId = null, label = '' }) {
+  state.pendingUnattendTarget = { studentIds, contactType, callSessionId };
+  document.getElementById('unattend-target-label').textContent = label
+    ? `Institution: ${label}`
+    : 'Tap the reason below to save immediately:';
+  document.getElementById('unattend-modal').classList.remove('hidden');
+}
+
 async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coordinator', callSessionId = null) {
   try {
     let emailSent = false;
@@ -397,7 +419,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
           callSessionId: sid === studentIds[0] ? callSessionId : null,
           contactType,
           callOutcome,
-          remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : 'Call Unattended',
+          remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : `Unattended (${callOutcome})`,
           isValidAttempt: true,
         }),
       });
@@ -408,7 +430,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
     if (callOutcome === 'Successfully Contacted') {
       showToast('✅ Saved: Attended');
     } else {
-      showToast(emailSent ? '❌ Saved: Unattended & Auto-email sent' : '❌ Saved: Unattended');
+      showToast(emailSent ? `Saved: ${callOutcome} & Auto-email sent` : `Saved: ${callOutcome}`);
     }
     await loadAllData();
     if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
@@ -995,13 +1017,29 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   });
 
-  document.getElementById('quick-unattend-btn').addEventListener('click', async () => {
-    await quickSaveCallOutcome(
-      [state.activeStudentId],
-      'No Answer',
-      document.getElementById('log-contact-type').value || 'coordinator',
-      document.getElementById('log-call-session-id').value || null
-    );
+  document.getElementById('quick-unattend-btn').addEventListener('click', () => {
+    openUnattendPopup({
+      studentIds: [state.activeStudentId],
+      contactType: document.getElementById('log-contact-type').value || 'coordinator',
+      callSessionId: document.getElementById('log-call-session-id').value || null,
+      label: document.getElementById('d-student-name').textContent || '',
+    });
+  });
+
+  document.getElementById('close-unattend-modal').addEventListener('click', () => {
+    document.getElementById('unattend-modal').classList.add('hidden');
+    state.pendingUnattendTarget = null;
+  });
+
+  document.querySelectorAll('.unattend-choice-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!state.pendingUnattendTarget) return;
+      const { studentIds, contactType, callSessionId } = state.pendingUnattendTarget;
+      const outcome = btn.dataset.outcome;
+      document.getElementById('unattend-modal').classList.add('hidden');
+      state.pendingUnattendTarget = null;
+      await quickSaveCallOutcome(studentIds, outcome, contactType, callSessionId);
+    });
   });
 
   document.querySelectorAll('.chip').forEach((chip) => {
