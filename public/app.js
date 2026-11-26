@@ -612,6 +612,7 @@ async function loadSettingsAndAudit() {
   document.getElementById('s-official-email').value = s.official_contact_email || '';
   document.getElementById('s-official-website').value = s.official_website_url || '';
   document.getElementById('s-auto-email').checked = s.auto_email_on_max_attempts !== 'false';
+  document.getElementById('s-auto-unattended-email').checked = s.auto_email_on_unattended === 'true';
   document.getElementById('s-ch-email').checked = s.channel_email_enabled !== 'false';
   document.getElementById('s-ch-inapp').checked = s.channel_in_platform_enabled !== 'false';
   document.getElementById('s-ch-sms').checked = s.channel_sms_enabled === 'true';
@@ -921,6 +922,19 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadAllData();
   });
 
+  document.getElementById('send-unattended-now-btn').addEventListener('click', async () => {
+    try {
+      const res = await api(`/api/students/${state.activeStudentId}/send-unattended-email`, { method: 'POST' });
+      if (res.duplicatePrevented) showToast('Email already sent for this sequence');
+      else if (res.skippedNoEmail) showToast('No valid email on record (flagged for manual follow-up)');
+      else showToast(`Email status: ${res.emailRecord?.delivery_status || 'Processed'}`);
+      await openCallingDesk(state.activeStudentId);
+      await loadAllData();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
   document.getElementById('edit-contact-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     await api(`/api/students/${state.activeStudentId}`, {
@@ -1027,6 +1041,19 @@ document.addEventListener('DOMContentLoaded', () => {
     loadNotifications();
   });
 
+  document.getElementById('send-unattended-emails-btn').addEventListener('click', async () => {
+    try {
+      const { summary } = await api('/api/emails/send-unattended', { method: 'POST' });
+      showToast(
+        `Unattended auto-mail: ${summary.sentCount} sent, ${summary.skippedNoEmailCount} no-email, ${summary.failedCount} failed`
+      );
+      loadNotifications();
+      loadAllData();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
   document.getElementById('process-retries-btn').addEventListener('click', async () => {
     const res = await api('/api/emails/process-retries', { method: 'POST' });
     showToast(`Processed ${res.processedCount} email retry(ies)`);
@@ -1063,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', () => {
         official_contact_email: document.getElementById('s-official-email').value,
         official_website_url: document.getElementById('s-official-website').value,
         auto_email_on_max_attempts: String(document.getElementById('s-auto-email').checked),
+        auto_email_on_unattended: String(document.getElementById('s-auto-unattended-email').checked),
         channel_email_enabled: String(document.getElementById('s-ch-email').checked),
         channel_in_platform_enabled: String(document.getElementById('s-ch-inapp').checked),
         channel_sms_enabled: String(document.getElementById('s-ch-sms').checked),

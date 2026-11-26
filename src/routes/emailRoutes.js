@@ -6,6 +6,7 @@ const {
   listEmailNotifications,
   resendEmailNotification,
   processPendingEmailRetries,
+  sendAutoEmailToUnattendedStudents,
 } = require('../services/emailService');
 
 const router = express.Router();
@@ -15,6 +16,15 @@ router.use(requireAuth, requireRole(ROLES.ADMIN, ROLES.SUPERVISOR));
 router.get('/', (req, res) => {
   const rows = listEmailNotifications({ status: req.query.status || '' }, getDb());
   res.json({ emails: rows });
+});
+
+router.post('/send-unattended', async (req, res) => {
+  try {
+    const summary = await sendAutoEmailToUnattendedStudents(req.user, getDb());
+    res.json({ summary });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.post('/:id/resend', requireRole(ROLES.ADMIN), async (req, res) => {

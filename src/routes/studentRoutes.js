@@ -13,6 +13,7 @@ const {
   updateStudentContactAndStatus,
 } = require('../services/callWorkflowService');
 const { initiateClickToCall } = require('../services/telephonyService');
+const { triggerThreeAttemptEmail } = require('../services/emailService');
 const { logAudit } = require('../services/auditService');
 
 const router = express.Router();
@@ -198,6 +199,23 @@ router.post('/:id/calls', async (req, res) => {
     res.status(201).json(result);
   } catch (err) {
     res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/send-unattended-email', async (req, res) => {
+  const db = getDb();
+  const student = getStudentById(Number(req.params.id), db);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+
+  if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const result = await triggerThreeAttemptEmail(student.id, req.user, db);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

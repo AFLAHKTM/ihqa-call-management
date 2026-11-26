@@ -162,6 +162,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 const DEFAULT_SETTINGS = {
   max_attempts: '3',
   auto_email_on_max_attempts: 'true',
+  auto_email_on_unattended: 'false',
   retry_interval_hours: '4',
   email_retry_max: '3',
   official_contact_phone: '+91 483 273 4500',

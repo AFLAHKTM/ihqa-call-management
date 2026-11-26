@@ -34,6 +34,7 @@ router.put('/', requireRole(ROLES.ADMIN), (req, res) => {
   const allowedKeys = new Set([
     'max_attempts',
     'auto_email_on_max_attempts',
+    'auto_email_on_unattended',
     'retry_interval_hours',
     'email_retry_max',
     'official_contact_phone',

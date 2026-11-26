@@ -14,6 +14,15 @@ function setCustomTransporter(transporter) {
 function getTransporter(settings) {
   if (customTransporter) return customTransporter;
   const provider = settings.email_provider || config.email.provider;
+  if (provider === 'gmail' && config.email.user && config.email.pass) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: config.email.user,
+        pass: config.email.pass,
+      },
+    });
+  }
   if ((provider === 'smtp' || provider === 'ses') && config.email.host && config.email.user) {
     return nodemailer.createTransport({
       host: config.email.host,
@@ -29,16 +38,21 @@ function getTransporter(settings) {
   return nodemailer.createTransport({ jsonTransport: true });
 }
 
-function buildThreeAttemptEmailBody(student, settings) {
+function buildUnattendedEmailBody(student, settings, attemptCount = 3) {
   const phone = settings.official_contact_phone || '+91 483 273 4500';
   const email = settings.official_contact_email || 'coordination@ihqakerala.org';
   const website = settings.official_website_url || 'https://ihqakerala.org';
+
+  const attemptPhrase =
+    attemptCount >= 3
+      ? 'Our coordination team has attempted to contact you three times regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.'
+      : `Our coordination team attempted to reach you by phone (${student.last_call_outcome || 'Unattended'}) regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.`;
 
   return `Dear ${student.student_name} / Parent,
 
 Greetings from the India Holy Quran Award.
 
-Our coordination team has attempted to contact you three times regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.
+${attemptPhrase}
 
 Unfortunately, we have not been able to reach you.
 
@@ -53,6 +67,10 @@ Kerala Coordination Team
 Official Contact Phone: ${phone}
 Official Email: ${email}
 Website: ${website}`;
+}
+
+function buildThreeAttemptEmailBody(student, settings) {
+  return buildUnattendedEmailBody(student, settings, 3);
 }
 
 async function sendGenericEmail({ to, subject, text }, db = getDb()) {
@@ -132,10 +150,13 @@ async function attemptEmailDelivery(emailRecordId, db = getDb()) {
 
     db.prepare(
       `UPDATE students
-       SET communication_status = 'Email Notification Sent',
+       SET communication_status = CASE
+             WHEN communication_status IN ('Attempt 3 Completed', 'Email Notification Sent') THEN 'Email Notification Sent'
+             ELSE communication_status
+           END,
            email_notified_sequence = ?,
            updated_at = datetime('now')
-       WHERE id = ? AND communication_status IN ('Attempt 3 Completed', 'Email Notification Sent')`
+       WHERE id = ?`
     ).run(row.sequence_number, row.student_id);
 
     logAudit(
@@ -204,9 +225,14 @@ async function triggerThreeAttemptEmail(studentId, actorUser = null, db = getDb(
   const settings = getSettingsMap(db);
   const maxRetries = Number(settings.email_retry_max || 3);
   const subject = EMAIL_SUBJECT_THREE_ATTEMPTS;
-  const body = buildThreeAttemptEmailBody(student, settings);
+  const body = buildUnattendedEmailBody(student, settings, student.valid_attempt_count || 3);
+  const targetEmail = isValidEmail(student.email)
+    ? student.email.trim()
+    : isValidEmail(student.coordinator_email)
+      ? student.coordinator_email.trim()
+      : null;
 
-  if (!isValidEmail(student.email)) {
+  if (!targetEmail) {
     const info = db
       .prepare(
         `INSERT INTO email_notifications (
@@ -246,7 +272,7 @@ async function triggerThreeAttemptEmail(studentId, actorUser = null, db = getDb(
     .run(
       student.id,
       sequenceNumber,
-      student.email.trim(),
+      targetEmail,
       student.student_name,
       subject,
       body,
@@ -326,12 +352,56 @@ function listEmailNotifications({ status = '', limit = 100 } = {}, db = getDb())
     .all(...params, Number(limit));
 }
 
+async function sendAutoEmailToUnattendedStudents(actorUser = null, db = getDb()) {
+  const unattended = db
+    .prepare(
+      `SELECT id FROM students
+       WHERE (
+         last_call_outcome IN ('No Answer', 'Not Reachable', 'Switched Off', 'Busy', 'Call Disconnected')
+         OR communication_status IN ('Attempt 1 Completed', 'Pending Second Call', 'Attempt 2 Completed', 'Pending Third Call', 'Attempt 3 Completed')
+       )
+       AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')
+       AND email_notified_sequence < COALESCE(NULLIF(three_attempt_sequence_id, 0), 1)`
+    )
+    .all();
+
+  const summary = {
+    processedCount: unattended.length,
+    sentCount: 0,
+    skippedNoEmailCount: 0,
+    failedCount: 0,
+    duplicateCount: 0,
+  };
+
+  for (const row of unattended) {
+    const res = await triggerThreeAttemptEmail(row.id, actorUser, db);
+    if (res.duplicatePrevented) summary.duplicateCount += 1;
+    else if (res.skippedNoEmail) summary.skippedNoEmailCount += 1;
+    else if (res.emailRecord?.delivery_status === 'SENT') summary.sentCount += 1;
+    else summary.failedCount += 1;
+  }
+
+  logAudit(
+    {
+      user: actorUser,
+      action: 'BULK_UNATTENDED_EMAIL_RUN',
+      entityType: 'email_notification',
+      details: summary,
+    },
+    db
+  );
+
+  return summary;
+}
+
 module.exports = {
   setCustomTransporter,
+  buildUnattendedEmailBody,
   buildThreeAttemptEmailBody,
   sendGenericEmail,
   attemptEmailDelivery,
   triggerThreeAttemptEmail,
+  sendAutoEmailToUnattendedStudents,
   resendEmailNotification,
   processPendingEmailRetries,
   listEmailNotifications,

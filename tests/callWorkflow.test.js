@@ -6,6 +6,7 @@ const { logCallAttempt, assignStudents } = require('../src/services/callWorkflow
 const {
   setCustomTransporter,
   triggerThreeAttemptEmail,
+  sendAutoEmailToUnattendedStudents,
   resendEmailNotification,
   processPendingEmailRetries,
 } = require('../src/services/emailService');
@@ -213,5 +214,24 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     const st = db.prepare('SELECT * FROM students WHERE id = ?').get(sid);
     assert.equal(st.assigned_staff_id, targetStaff.id);
     assert.equal(st.communication_status, 'Pending First Call');
+  });
+
+  it('supports immediate auto-mail on unattended call and bulk unattended email sweep', async () => {
+    db.prepare("UPDATE system_settings SET value = 'true' WHERE key = 'auto_email_on_unattended'").run();
+    const sid1 = createTestStudent({ reg: 'TEST-REG-010', email: 'unattended1@example.org' });
+    const r1 = await logCallAttempt({ studentId: sid1, staffUser, callOutcome: 'No Answer' }, db);
+    assert.equal(r1.student.communication_status, 'Pending Second Call');
+    assert.equal(sentMessages.length, 1);
+    assert.match(sentMessages[0].text, /attempted to reach you by phone \(No Answer\)/);
+
+    // Bulk sweep skips already-emailed sid1 and emails sid2
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
+    const sid2 = createTestStudent({ reg: 'TEST-REG-011', email: 'unattended2@example.org' });
+    await logCallAttempt({ studentId: sid2, staffUser, callOutcome: 'Not Reachable' }, db);
+    assert.equal(sentMessages.length, 1);
+
+    const bulk = await sendAutoEmailToUnattendedStudents(adminUser, db);
+    assert.equal(bulk.sentCount, 1);
+    assert.equal(sentMessages.length, 2);
   });
 });

@@ -495,12 +495,26 @@ async function logCallAttempt(
           nextFollowupAt = new Date(Date.now() + retryHours * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
         }
         nextStatus = 'Pending Second Call';
+        if (
+          settings.auto_email_on_unattended === 'true' &&
+          UNREACHABLE_OUTCOMES.has(callOutcome) &&
+          student.email_notified_sequence < (student.three_attempt_sequence_id || 1)
+        ) {
+          shouldTriggerEmail = true;
+        }
       } else if (newValidCount === 2) {
         if (!nextFollowupAt) {
           const retryHours = Number(settings.retry_interval_hours || 4);
           nextFollowupAt = new Date(Date.now() + retryHours * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
         }
         nextStatus = 'Pending Third Call';
+        if (
+          settings.auto_email_on_unattended === 'true' &&
+          UNREACHABLE_OUTCOMES.has(callOutcome) &&
+          student.email_notified_sequence < (student.three_attempt_sequence_id || 1)
+        ) {
+          shouldTriggerEmail = true;
+        }
       } else {
         nextStatus = `Pending Follow-up`;
         if (!COMMUNICATION_STATUSES.includes(nextStatus)) {

@@ -270,8 +270,11 @@
 
           <div class="card admin-supervisor-only">
             <div class="card-header">
-              <h3>Automatic 3-Attempt Email Deliveries</h3>
-              <button id="process-retries-btn" class="btn btn-outline btn-sm admin-only">Run Retry Queue</button>
+              <h3>Automatic Unattended &amp; 3-Attempt Emails</h3>
+              <div class="header-actions">
+                <button id="send-unattended-emails-btn" class="btn btn-primary btn-sm">📧 Auto-Mail Unattended</button>
+                <button id="process-retries-btn" class="btn btn-outline btn-sm admin-only">Run Retry Queue</button>
+              </div>
             </div>
             <div id="failed-emails-alert" class="error-banner hidden"></div>
             <div class="table-wrap">
@@ -350,6 +353,7 @@
                 <label>Email Provider
                   <select id="s-email-provider">
                     <option value="dev-json">Dev Local Transport</option>
+                    <option value="gmail">Gmail (SMTP App Password)</option>
                     <option value="ses">Amazon SES (SMTP)</option>
                     <option value="smtp">Custom SMTP</option>
                   </select>
@@ -360,6 +364,7 @@
               <label>Official Website URL (in Emails) <input type="url" id="s-official-website" /></label>
               <div class="checkbox-grid">
                 <label class="chk"><input type="checkbox" id="s-auto-email" /> Auto-email after max attempts</label>
+                <label class="chk"><input type="checkbox" id="s-auto-unattended-email" /> Auto-email immediately on unattended call</label>
                 <label class="chk"><input type="checkbox" id="s-ch-email" /> Email Notification Channel</label>
                 <label class="chk"><input type="checkbox" id="s-ch-inapp" /> In-Platform Notifications</label>
                 <label class="chk"><input type="checkbox" id="s-ch-sms" /> SMS Provider Channel</label>
@@ -509,6 +514,7 @@
           <label class="chk"><input type="checkbox" id="log-complete-followup" /> Mark Follow-up Completed</label>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary btn-lg">Save Call Result</button>
+            <button type="button" id="send-unattended-now-btn" class="btn btn-outline btn-sm">📧 Send Unattended Email</button>
             <button type="button" id="cancel-initiation-btn" class="btn btn-outline btn-sm">Accidental Tap (Do Not Count)</button>
           </div>
         </form>
