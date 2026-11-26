@@ -6,7 +6,6 @@ const config = require('../config');
 let dbInstance = null;
 
 const SCHEMA_SQL = `
-PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -187,6 +186,11 @@ function initDatabase(customPath) {
     fs.mkdirSync(dir, { recursive: true });
   }
   const db = new DatabaseSync(targetPath);
+  try {
+    db.exec('PRAGMA journal_mode = WAL;');
+  } catch (_) {
+    // Fallback gracefully on ephemeral/serverless filesystems
+  }
   db.exec(SCHEMA_SQL);
 
   const insertSetting = db.prepare(

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Centralised Call Management & Follow-Up System for the Indian Holy Quran Award - Kerala Initial Screening",
   "main": "src/server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",

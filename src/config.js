@@ -2,10 +2,17 @@ require('dotenv').config();
 
 const path = require('node:path');
 
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+
 module.exports = {
   port: Number(process.env.PORT || 3000),
   nodeEnv: process.env.NODE_ENV || 'development',
-  dbPath: process.env.DB_PATH || path.join(__dirname, '..', 'data', 'ihqa_call_management.sqlite'),
+  isVercel,
+  dbPath:
+    process.env.DB_PATH ||
+    (isVercel
+      ? '/tmp/ihqa_call_management.sqlite'
+      : path.join(__dirname, '..', 'data', 'ihqa_call_management.sqlite')),
   sessionSecret: process.env.SESSION_SECRET || 'ihqa-kerala-2026-dev-session-secret-change-prod',
   sessionCookieName: 'ihqa_session',
   sessionTtlMs: 12 * 60 * 60 * 1000, // 12 hours
