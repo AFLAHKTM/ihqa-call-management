@@ -467,6 +467,7 @@ async function sendAutoEmailToUnattendedStudents(actorUser = null, db = getDb())
 
 module.exports = {
   setCustomTransporter,
+  getTransporter,
   buildUnattendedEmailBody,
   buildThreeAttemptEmailBody,
   sendGenericEmail,
