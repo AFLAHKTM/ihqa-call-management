@@ -411,6 +411,7 @@ function openUnattendPopup({ studentIds, contactType = 'coordinator', callSessio
 async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coordinator', callSessionId = null) {
   try {
     let emailSent = false;
+    let emailSimulated = false;
     for (const sid of studentIds) {
       const res = await api(`/api/students/${sid}/calls`, {
         method: 'POST',
@@ -423,13 +424,21 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
         }),
       });
       if (res.emailResult?.emailRecord?.delivery_status === 'SENT') {
-        emailSent = true;
+        if (res.emailResult?.emailRecord?.last_error?.includes('SIMULATION_ONLY')) {
+          emailSimulated = true;
+        } else {
+          emailSent = true;
+        }
       }
     }
     if (callOutcome === 'Successfully Contacted') {
       showToast('✅ Saved: Attended');
+    } else if (emailSent) {
+      showToast(`Saved: ${callOutcome} & Auto-email sent to institution`);
+    } else if (emailSimulated) {
+      showToast(`Saved: ${callOutcome} (⚠️ Dev Mode: configure SMTP in Settings for real email)`);
     } else {
-      showToast(emailSent ? `Saved: ${callOutcome} & Auto-email sent` : `Saved: ${callOutcome}`);
+      showToast(`Saved: ${callOutcome}`);
     }
     await loadAllData();
     if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
@@ -744,9 +753,15 @@ async function loadSettingsAndAudit() {
   document.getElementById('s-retention-days').value = s.data_retention_days || 365;
   document.getElementById('s-telephony-provider').value = s.telephony_provider || 'device_phone';
   document.getElementById('s-email-provider').value = s.email_provider || 'dev-json';
+  document.getElementById('s-smtp-host').value = s.smtp_host || '';
+  document.getElementById('s-smtp-port').value = s.smtp_port || 587;
+  document.getElementById('s-smtp-user').value = s.smtp_user || '';
+  document.getElementById('s-smtp-pass').value = s.smtp_pass || '';
+  document.getElementById('s-smtp-secure').checked = s.smtp_secure === 'true';
+  document.getElementById('s-email-from').value = s.email_from || 'India Holy Quran Award <info@indiaquranaward.com>';
   document.getElementById('s-official-phone').value = s.official_contact_phone || '';
-  document.getElementById('s-official-email').value = s.official_contact_email || '';
-  document.getElementById('s-official-website').value = s.official_website_url || '';
+  document.getElementById('s-official-email').value = s.official_contact_email || 'info@indiaquranaward.com';
+  document.getElementById('s-official-website').value = s.official_website_url || 'https://indiaquranaward.com';
   document.getElementById('s-auto-email').checked = s.auto_email_on_max_attempts !== 'false';
   document.getElementById('s-auto-unattended-email').checked = s.auto_email_on_unattended === 'true';
   document.getElementById('s-ch-email').checked = s.channel_email_enabled !== 'false';
@@ -754,8 +769,12 @@ async function loadSettingsAndAudit() {
   document.getElementById('s-ch-sms').checked = s.channel_sms_enabled === 'true';
   document.getElementById('s-ch-wa').checked = s.channel_whatsapp_enabled === 'true';
 
-  document.getElementById('creds-summary').textContent =
-    `SMTP: ${cfg.credentialsSummary.smtpHost} (${cfg.credentialsSummary.smtpUserMasked || 'dev-json'}) · Exotel SID: ${cfg.credentialsSummary.exotelSidMasked || 'not set'} · Twilio SID: ${cfg.credentialsSummary.twilioSidMasked || 'not set'}`;
+  const readyBadge = cfg.credentialsSummary.isRealSmtpReady
+    ? '<span style="color:#027a48;font-weight:700">● Real SMTP Configured</span>'
+    : '<span style="color:#b54708;font-weight:700">● Dev Simulation Mode (No Real Emails)</span>';
+
+  document.getElementById('creds-summary').innerHTML =
+    `Email Delivery: ${readyBadge} · Host: <code>${escapeHtml(cfg.credentialsSummary.smtpHost)}</code> · User: <code>${escapeHtml(cfg.credentialsSummary.smtpUserMasked || 'none')}</code><br>Telephony: <strong>${escapeHtml(cfg.credentialsSummary.telephonyProvider)}</strong> · Exotel: <code>${escapeHtml(cfg.credentialsSummary.exotelSidMasked || 'not set')}</code>`;
 
   document.getElementById('audit-tbody').innerHTML = audit.rows
     .map(
@@ -1288,6 +1307,12 @@ document.addEventListener('DOMContentLoaded', () => {
         data_retention_days: document.getElementById('s-retention-days').value,
         telephony_provider: document.getElementById('s-telephony-provider').value,
         email_provider: document.getElementById('s-email-provider').value,
+        smtp_host: document.getElementById('s-smtp-host').value,
+        smtp_port: document.getElementById('s-smtp-port').value,
+        smtp_user: document.getElementById('s-smtp-user').value,
+        smtp_pass: document.getElementById('s-smtp-pass').value,
+        smtp_secure: String(document.getElementById('s-smtp-secure').checked),
+        email_from: document.getElementById('s-email-from').value,
         official_contact_phone: document.getElementById('s-official-phone').value,
         official_contact_email: document.getElementById('s-official-email').value,
         official_website_url: document.getElementById('s-official-website').value,
@@ -1301,6 +1326,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     showToast('Configuration saved');
     loadSettingsAndAudit();
+  });
+
+  document.getElementById('btn-send-test-email')?.addEventListener('click', async () => {
+    const target = document.getElementById('s-test-email-target').value.trim();
+    const resultBox = document.getElementById('test-email-result');
+    resultBox.innerHTML = '<span class="muted">⏳ Connecting to mail server and dispatching test email...</span>';
+    try {
+      const res = await api('/api/settings/test-email', {
+        method: 'POST',
+        body: JSON.stringify({ to: target }),
+      });
+      resultBox.innerHTML = `<span style="color:#027a48;font-weight:700">✅ ${escapeHtml(res.message)}</span>`;
+      showToast('✅ Test email delivered successfully');
+    } catch (err) {
+      resultBox.innerHTML = `<span style="color:#b42318;font-weight:700">❌ ${escapeHtml(err.message)}</span>`;
+      showToast(`Email Test Failed: ${err.message}`);
+    }
   });
 
   document.getElementById('run-jobs-btn').addEventListener('click', async () => {

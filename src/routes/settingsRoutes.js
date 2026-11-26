@@ -14,12 +14,22 @@ router.use(requireAuth);
 router.get('/', requireRole(ROLES.ADMIN, ROLES.SUPERVISOR), (req, res) => {
   const db = getDb();
   const settings = getSettingsMap(db);
+  const provider = settings.email_provider || config.email.provider || 'dev-json';
+  const effectiveHost = settings.smtp_host || config.email.host || '';
+  const effectiveUser = settings.smtp_user || config.email.user || '';
+  const hasPass = Boolean(settings.smtp_pass || config.email.pass);
+
   res.json({
-    settings,
+    settings: {
+      ...settings,
+      smtp_pass: hasPass ? '••••••••' : '',
+    },
     credentialsSummary: {
-      emailProvider: settings.email_provider || config.email.provider,
-      smtpHost: config.email.host || '(not configured)',
-      smtpUserMasked: maskSecret(config.email.user),
+      emailProvider: provider,
+      smtpHost: effectiveHost || (provider === 'gmail' ? 'smtp.gmail.com' : '(not configured)'),
+      smtpUserMasked: maskSecret(effectiveUser),
+      hasSmtpPass: hasPass,
+      isRealSmtpReady: (provider === 'gmail' && effectiveUser && hasPass) || (provider === 'smtp' && effectiveHost && effectiveUser && hasPass),
       telephonyProvider: settings.telephony_provider || config.telephony.provider,
       exotelSidMasked: maskSecret(config.telephony.exotel.sid),
       twilioSidMasked: maskSecret(config.telephony.twilio.accountSid),
@@ -44,8 +54,14 @@ router.put('/', requireRole(ROLES.ADMIN), (req, res) => {
     'official_contact_phone',
     'official_contact_email',
     'official_website_url',
-    'telephony_provider',
+    'email_from',
     'email_provider',
+    'smtp_host',
+    'smtp_port',
+    'smtp_secure',
+    'smtp_user',
+    'smtp_pass',
+    'telephony_provider',
     'channel_email_enabled',
     'channel_in_platform_enabled',
     'channel_sms_enabled',
@@ -64,8 +80,11 @@ router.put('/', requireRole(ROLES.ADMIN), (req, res) => {
   const applied = {};
   for (const [key, val] of Object.entries(updates)) {
     if (allowedKeys.has(key)) {
+      if (key === 'smtp_pass' && (val === '••••••••' || !val)) {
+        continue;
+      }
       stmt.run(key, String(val), req.user.id);
-      applied[key] = String(val);
+      applied[key] = key === 'smtp_pass' ? '[MASKED]' : String(val);
     }
   }
 
@@ -81,6 +100,44 @@ router.put('/', requireRole(ROLES.ADMIN), (req, res) => {
   );
 
   res.json({ settings: getSettingsMap(db) });
+});
+
+router.post('/test-email', requireRole(ROLES.ADMIN), async (req, res) => {
+  const db = getDb();
+  const settings = getSettingsMap(db);
+  const targetEmail = req.body?.to || req.user.email || settings.official_contact_email;
+  const { isValidEmail } = require('../utils/security');
+
+  if (!isValidEmail(targetEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid recipient email address for testing.' });
+  }
+
+  const { getTransporter, sendGenericEmail } = require('../services/emailService');
+  const transporter = getTransporter(settings);
+
+  if (transporter.isSimulated) {
+    return res.status(400).json({
+      error: 'Cannot deliver real email: Email Provider is currently in Dev Simulation mode (dev-json) or SMTP credentials (Username / Password) are missing. Please enter your SMTP Host, Username and App Password below, click Save Configuration, and test again.',
+      simulated: true,
+    });
+  }
+
+  try {
+    const result = await sendGenericEmail(
+      {
+        to: targetEmail,
+        subject: 'Test Verification Email – India Holy Quran Award',
+        text: `Greetings,\n\nThis is a verified test email sent from the India Holy Quran Award Call Management portal.\n\nSender: ${settings.email_from || 'info@indiaquranaward.com'}\nDelivered To: ${targetEmail}\nTime: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST\n\nYour SMTP email delivery configuration is working!`,
+      },
+      db
+    );
+    res.json({ ok: true, message: `Real test email successfully sent to ${targetEmail}!`, result });
+  } catch (err) {
+    console.error('SMTP test email failed:', err);
+    res.status(500).json({
+      error: `SMTP connection failed: ${err.message || 'Could not send test email'}. Check your SMTP Host, Port, Username and Password / App Password.`,
+    });
+  }
 });
 
 router.post('/run-jobs', requireRole(ROLES.ADMIN, ROLES.SUPERVISOR), async (req, res) => {

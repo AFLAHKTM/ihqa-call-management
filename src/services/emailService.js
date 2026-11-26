@@ -12,30 +12,39 @@ function setCustomTransporter(transporter) {
 }
 
 function getTransporter(settings) {
-  if (customTransporter) return customTransporter;
-  const provider = settings.email_provider || config.email.provider;
-  if (provider === 'gmail' && config.email.user && config.email.pass) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: config.email.user,
-        pass: config.email.pass,
-      },
-    });
+  if (customTransporter) {
+    customTransporter.isSimulated = false;
+    return customTransporter;
   }
-  if ((provider === 'smtp' || provider === 'ses') && config.email.host && config.email.user) {
-    return nodemailer.createTransport({
-      host: config.email.host,
-      port: config.email.port,
-      secure: config.email.secure,
-      auth: {
-        user: config.email.user,
-        pass: config.email.pass,
-      },
+  const provider = settings.email_provider || config.email.provider || 'dev-json';
+  const user = settings.smtp_user || config.email.user;
+  const pass = settings.smtp_pass || config.email.pass;
+  const host = settings.smtp_host || config.email.host;
+  const port = Number(settings.smtp_port || config.email.port || 587);
+  const secure = String(settings.smtp_secure ?? config.email.secure) === 'true';
+
+  if (provider === 'gmail' && user && pass) {
+    const t = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
     });
+    t.isSimulated = false;
+    return t;
+  }
+  if ((provider === 'smtp' || provider === 'ses') && host && user && pass) {
+    const t = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+    });
+    t.isSimulated = false;
+    return t;
   }
   // Safe local/dev transport using nodemailer jsonTransport
-  return nodemailer.createTransport({ jsonTransport: true });
+  const t = nodemailer.createTransport({ jsonTransport: true });
+  t.isSimulated = true;
+  return t;
 }
 
 function buildUnattendedEmailBody(student, settings, attemptCount = 3) {
@@ -173,17 +182,21 @@ async function attemptEmailDelivery(emailRecordId, db = getDb()) {
       text: row.body,
     });
     const nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const simNote = transporter.isSimulated
+      ? 'SIMULATION_ONLY: Real SMTP credentials not configured. Configure Gmail or SMTP in Settings to deliver to real inboxes.'
+      : null;
+
     db.prepare(
       `UPDATE email_notifications
        SET delivery_status = 'SENT',
            attempt_count = ?,
-           last_error = NULL,
+           last_error = ?,
            provider_message_id = ?,
            sent_at = ?,
            next_retry_at = NULL,
            updated_at = datetime('now')
        WHERE id = ?`
-    ).run(nextAttempt, info.messageId || `ihqa-${Date.now()}`, nowIso, row.id);
+    ).run(nextAttempt, simNote, info.messageId || `ihqa-${Date.now()}`, nowIso, row.id);
 
     db.prepare(
       `UPDATE students
