@@ -111,9 +111,15 @@ function listStudents(filters = {}, user = null, db = getDb()) {
 
   const rows = db
     .prepare(
-      `SELECT s.*, u.full_name as assigned_staff_name, u.username as assigned_staff_username
+      `SELECT s.*,
+              u.full_name as assigned_staff_name,
+              u.username as assigned_staff_username,
+              i.place as institution_place,
+              i.registered_students_count as institution_students_count,
+              i.winner_status as institution_winner_status
        FROM students s
        LEFT JOIN users u ON u.id = s.assigned_staff_id
+       LEFT JOIN institutions i ON i.id = s.institution_id
        ${whereClause}
        ORDER BY
          CASE
@@ -121,7 +127,7 @@ function listStudents(filters = {}, user = null, db = getDb()) {
            WHEN s.communication_status IN ('Attempt 1 Completed', 'Attempt 2 Completed', 'Attempt 3 Completed', 'Number Correction Required') THEN 1
            ELSE 2
          END,
-         s.updated_at DESC,
+         s.institution_name ASC,
          s.id ASC
        LIMIT ? OFFSET ?`
     )

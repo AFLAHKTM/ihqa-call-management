@@ -230,53 +230,109 @@ function renderStudentsTable(rows) {
   const isSupOrAdmin = state.user.role === 'ADMIN' || state.user.role === 'SUPERVISOR';
   const tbody = document.getElementById('students-tbody');
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="muted">No student calling records match the active filters.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted">No records match the active filters.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = rows
-    .map((s, idx) => {
-      const checked = state.selectedStudentIds.has(s.id) ? 'checked' : '';
-      const isOverdue =
-        s.next_followup_at &&
-        new Date(s.next_followup_at.replace(' ', 'T') + 'Z').getTime() < Date.now() &&
-        ['Pending Second Call', 'Pending Third Call', 'Callback Scheduled'].includes(s.communication_status);
+  // Group rows by institution so the table matches the Institution Winners Status Report model
+  const groups = [];
+  const groupMap = new Map();
+  for (const s of rows) {
+    const key = s.institution_id ? `inst:${s.institution_id}` : `name:${s.institution_name}|${s.district}`;
+    let g = groupMap.get(key);
+    if (!g) {
+      g = {
+        key,
+        institution_name: s.institution_name,
+        institution_place: s.institution_place || '',
+        district: s.district,
+        coordinator_name: s.coordinator_name || '',
+        coordinator_mobile: s.coordinator_mobile || '',
+        coordinator_email: s.coordinator_email || s.email || '',
+        students_count: s.institution_students_count || 1,
+        winner_status: s.institution_winner_status || '',
+        items: [],
+      };
+      groupMap.set(key, g);
+      groups.push(g);
+    }
+    g.items.push(s);
+  }
 
-      const primaryPhone = s.student_mobile || s.parent_mobile || s.coordinator_mobile || '';
-      const primaryType = s.student_mobile ? 'student' : s.parent_mobile ? 'parent' : 'coordinator';
+  tbody.innerHTML = groups
+    .map((g, idx) => {
+      // Order category breakdown: Tafsir first, then Recitation (matching the report screenshot)
+      const sortedItems = [...g.items].sort((a, b) => {
+        if (a.exam_category === b.exam_category) return 0;
+        return a.exam_category.includes('Tafsir') ? -1 : 1;
+      });
+      const primary = sortedItems[0];
+      const allIds = sortedItems.map((x) => x.id);
+      const checked = allIds.every((id) => state.selectedStudentIds.has(id)) ? 'checked' : '';
+
+      const primaryPhone = primary.student_mobile || primary.parent_mobile || g.coordinator_mobile || '';
+      const primaryType = primary.student_mobile ? 'student' : primary.parent_mobile ? 'parent' : 'coordinator';
       const cleanPhone = primaryPhone.replace(/[^\d+]/g, '');
 
+      const locationLine = [g.institution_place, g.district, 'Kerala'].filter(Boolean).join(', ');
+      const contactLine = [g.coordinator_mobile || primaryPhone, g.coordinator_email].filter(Boolean).join(' · ');
+
+      const isPartial = String(g.winner_status).toLowerCase().includes('partial');
+      const winnerStatusHtml = g.winner_status
+        ? `<div class="${isPartial ? 'winner-status-partial' : 'winner-status-done'}">${escapeHtml(g.winner_status)}</div>`
+        : `<div class="winner-status-done">Registered</div>`;
+
+      const breakdownHtml = sortedItems
+        .map((item) => {
+          const isCalled = item.communication_status !== 'Pending First Call' && item.communication_status !== 'Not Assigned';
+          return `<div class="cat-breakdown-item">
+            <div class="cat-breakdown-label">${escapeHtml(item.exam_category)}:</div>
+            <div class="cat-breakdown-winner">
+              ${escapeHtml(item.student_name)}
+              ${sortedItems.length > 1 ? `<button type="button" class="cat-log-link open-desk-btn" data-id="${item.id}" title="Log call for this category">${isCalled ? escapeHtml(item.communication_status) : 'Log'}</button>` : ''}
+            </div>
+          </div>`;
+        })
+        .join('');
+
+      const staffNames = Array.from(new Set(sortedItems.map((i) => i.assigned_staff_name || 'Unassigned'))).join(', ');
+      const isOverdue =
+        primary.next_followup_at &&
+        new Date(primary.next_followup_at.replace(' ', 'T') + 'Z').getTime() < Date.now() &&
+        ['Pending Second Call', 'Pending Third Call', 'Callback Scheduled'].includes(primary.communication_status);
+
       return `<tr>
-        ${isSupOrAdmin ? `<td data-label="Select"><input type="checkbox" class="row-chk" data-id="${s.id}" ${checked} /></td>` : ''}
-        <td data-label="Sl No"><strong>${idx + 1}</strong></td>
-        <td data-label="Reg No"><strong>${escapeHtml(s.registration_number)}</strong></td>
-        <td data-label="Student & Contact">
-          <div><strong>${escapeHtml(s.student_name)}</strong></div>
-          ${s.parent_name ? `<div class="muted small">Parent: ${escapeHtml(s.parent_name)}</div>` : ''}
-          ${s.coordinator_name ? `<div class="muted small">Supervisor: ${escapeHtml(s.coordinator_name)}</div>` : ''}
-          <div class="muted small">${escapeHtml(primaryPhone || '-')}</div>
+        ${isSupOrAdmin ? `<td data-label="Select"><input type="checkbox" class="row-chk" data-ids="${allIds.join(',')}" ${checked} /></td>` : ''}
+        <td data-label="#"><strong>${idx + 1}</strong></td>
+        <td data-label="Institution">
+          <div class="inst-title">${escapeHtml(g.institution_name)}</div>
+          <div class="inst-loc">${escapeHtml(locationLine)}</div>
         </td>
-        <td data-label="District & Institution">
-          <div>${escapeHtml(s.district)}</div>
-          <div class="muted small">${escapeHtml(s.institution_name)}</div>
+        <td data-label="Supervisor & Contact">
+          <div class="sup-name">${escapeHtml(g.coordinator_name || primary.student_name)}</div>
+          <div class="sup-contact">${escapeHtml(contactLine || '-')}</div>
         </td>
-        <td data-label="Category" class="small">${escapeHtml(s.exam_category)}</td>
-        <td data-label="Assigned Staff" class="small">${escapeHtml(s.assigned_staff_name || 'Unassigned')}</td>
-        <td data-label="Attempts"><span class="badge badge-neutral">${s.valid_attempt_count} / 3</span></td>
-        <td data-label="Status">
-          <span class="badge ${statusBadgeClass(s.communication_status)}">${escapeHtml(s.communication_status)}</span>
-          ${s.manual_followup_required ? '<div class="small" style="color:#b42318;font-weight:600">Manual Follow-up</div>' : ''}
+        <td data-label="Students" class="num-col">
+          <span class="students-count">${escapeHtml(g.students_count)}</span>
         </td>
-        <td data-label="Last Outcome / Follow-up" class="small">
-          <div>${escapeHtml(s.last_call_outcome || 'Not called yet')}</div>
-          ${s.next_followup_at ? `<div class="${isOverdue ? 'badge badge-danger' : 'muted'}">Follow-up: ${escapeHtml(s.next_followup_at)}</div>` : ''}
+        <td data-label="Winner Status" class="center-col">
+          ${winnerStatusHtml}
+        </td>
+        <td data-label="Category Breakdown">
+          <div class="cat-breakdown-list">${breakdownHtml}</div>
         </td>
         <td data-label="Action">
+          <div style="margin-bottom:6px">
+            <span class="badge ${statusBadgeClass(primary.communication_status)}">${escapeHtml(primary.communication_status)}</span>
+            <span class="badge badge-neutral">${primary.valid_attempt_count}/3</span>
+            <div class="muted small" style="margin-top:2px">${escapeHtml(staffNames)}</div>
+            ${primary.next_followup_at ? `<div class="small ${isOverdue ? 'badge badge-danger' : 'muted'}">Follow-up: ${escapeHtml(primary.next_followup_at)}</div>` : ''}
+          </div>
           <div class="row-action-btns">
             ${cleanPhone
-              ? `<a class="btn btn-primary btn-sm row-phone-call" data-id="${s.id}" data-contact="${primaryType}" href="tel:${escapeHtml(cleanPhone)}">📞 Phone Call</a>`
+              ? `<a class="btn btn-primary btn-sm row-phone-call" data-id="${primary.id}" data-contact="${primaryType}" href="tel:${escapeHtml(cleanPhone)}">📞 Phone Call</a>`
               : ''}
-            <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${s.id}">Log Call</button>
+            <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${primary.id}">Log Call</button>
           </div>
         </td>
       </tr>`;
@@ -293,9 +349,14 @@ function renderStudentsTable(rows) {
   });
   document.querySelectorAll('.row-chk').forEach((chk) => {
     chk.addEventListener('change', () => {
-      const id = Number(chk.dataset.id);
-      if (chk.checked) state.selectedStudentIds.add(id);
-      else state.selectedStudentIds.delete(id);
+      const ids = String(chk.dataset.ids || '')
+        .split(',')
+        .filter(Boolean)
+        .map(Number);
+      for (const id of ids) {
+        if (chk.checked) state.selectedStudentIds.add(id);
+        else state.selectedStudentIds.delete(id);
+      }
       updateBulkBar();
     });
   });

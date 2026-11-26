@@ -129,6 +129,34 @@ body {
   font-size: 13px;
 }
 
+/* Institution Winners Status Report Table Model */
+.report-model-table td { vertical-align: middle; padding: 14px 12px; }
+.report-model-table th.num-col, .report-model-table td.num-col { text-align: center; }
+.report-model-table th.center-col, .report-model-table td.center-col { text-align: center; }
+.inst-title { font-weight: 700; font-size: 14px; color: var(--text); line-height: 1.3; }
+.inst-loc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.sup-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.sup-contact { color: var(--muted); font-size: 12px; margin-top: 2px; word-break: break-word; }
+.students-count { font-weight: 700; font-size: 15px; color: var(--text); }
+.winner-status-done { color: var(--success); font-weight: 700; font-size: 12px; line-height: 1.3; }
+.winner-status-partial { color: var(--warn); font-weight: 700; font-size: 12px; line-height: 1.3; }
+.cat-breakdown-list { display: flex; flex-direction: column; gap: 8px; }
+.cat-breakdown-item { font-size: 12px; line-height: 1.35; }
+.cat-breakdown-label { color: var(--success); font-weight: 700; }
+.cat-breakdown-winner { color: #0b5d3b; font-weight: 500; }
+.cat-log-link {
+  border: 1px solid var(--border);
+  background: #f8faf9;
+  color: var(--emerald-900);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.cat-log-link:hover { background: var(--emerald-50); border-color: var(--emerald-700); }
+
 input, select, textarea {
   width: 100%;
   padding: 8px 10px;
