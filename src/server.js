@@ -4,18 +4,26 @@ const { seedDatabase } = require('./db/seedData');
 const { startScheduler } = require('./services/jobScheduler');
 const { createApp } = require('./app');
 
-const db = initDatabase();
-const seedResult = seedDatabase(db);
-if (seedResult.seeded) {
-  console.log('Initialized & seeded Kerala Initial Screening dataset:', seedResult);
+let cachedApp = null;
+
+function getInitializedApp() {
+  if (!cachedApp) {
+    const db = initDatabase();
+    const seedResult = seedDatabase(db);
+    if (seedResult.seeded) {
+      console.log('Initialized & seeded Kerala Initial Screening dataset:', seedResult);
+    }
+    cachedApp = createApp();
+  }
+  return cachedApp;
 }
 
-const app = createApp();
 if (require.main === module) {
+  const app = getInitializedApp();
   startScheduler(60000);
   app.listen(config.port, () => {
     console.log(`IHQA Kerala Call Management System listening on http://localhost:${config.port}`);
   });
 }
 
-module.exports = app;
+module.exports = (req, res) => getInitializedApp()(req, res);
