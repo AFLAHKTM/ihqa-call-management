@@ -23,7 +23,7 @@ module.exports = {
     secure: process.env.SMTP_SECURE === 'true',
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.EMAIL_FROM || 'India Holy Quran Award Kerala <coordination@ihqakerala.org>',
+    from: process.env.EMAIL_FROM || 'India Holy Quran Award <info@indiaquranaward.com>',
   },
   telephony: {
     provider: process.env.TELEPHONY_PROVIDER || 'simulated', // 'exotel' | 'twilio' | 'simulated'

@@ -170,8 +170,9 @@ const DEFAULT_SETTINGS = {
   retry_interval_hours: '4',
   email_retry_max: '3',
   official_contact_phone: '+91 483 273 4500',
-  official_contact_email: 'coordination@ihqakerala.org',
-  official_website_url: 'https://ihqakerala.org',
+  official_contact_email: 'info@indiaquranaward.com',
+  official_website_url: 'https://indiaquranaward.com',
+  email_from: 'India Holy Quran Award <info@indiaquranaward.com>',
   telephony_provider: 'device_phone', // device_phone | simulated | exotel | twilio
   email_provider: 'dev-json', // dev-json | gmail | smtp | ses
   channel_email_enabled: 'true',
@@ -203,6 +204,14 @@ function initDatabase(customPath) {
   );
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     insertSetting.run(k, v);
+  }
+
+  try {
+    db.prepare(`UPDATE system_settings SET value = 'info@indiaquranaward.com' WHERE key = 'official_contact_email' AND value LIKE '%coordination@ihqa%'`).run();
+    db.prepare(`UPDATE system_settings SET value = 'India Holy Quran Award <info@indiaquranaward.com>' WHERE key = 'email_from' AND value LIKE '%coordination@ihqa%'`).run();
+    db.prepare(`INSERT OR IGNORE INTO system_settings (key, value) VALUES ('email_from', 'India Holy Quran Award <info@indiaquranaward.com>')`).run();
+  } catch (_) {
+    // Ignore migration catch
   }
 
   dbInstance = db;

@@ -42,19 +42,46 @@ function buildUnattendedEmailBody(student, settings, attemptCount = 3) {
   const estName = settings.establishment_name || 'India Holy Quran Award — Kerala Coordination Office';
   const callingHours = settings.establishment_calling_hours || '09:00 AM - 06:00 PM IST';
   const phone = settings.official_contact_phone || '+91 483 273 4500';
-  const email = settings.official_contact_email || 'coordination@ihqakerala.org';
-  const website = settings.official_website_url || 'https://ihqakerala.org';
+  const email = settings.official_contact_email || 'info@indiaquranaward.com';
+  const website = settings.official_website_url || 'https://indiaquranaward.com';
+  const instName = student.institution_name || 'Institution';
+  const coordinatorName = student.coordinator_name || 'Principal / Coordinator';
 
-  const attemptPhrase =
-    attemptCount >= 3
-      ? 'Our coordination team has attempted to contact you three times regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.'
-      : `Our coordination team attempted to reach you by phone (${student.last_call_outcome || 'Unattended'}) regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.`;
+  if (attemptCount >= 3) {
+    return `To: The Principal / Institution Coordinator (${coordinatorName})
+Institution: ${instName}
+Regarding Candidate: ${student.student_name} (Reg No: ${student.registration_number})
+
+Dear Principal / Coordinator & Dear ${student.student_name} / Parent,
+
+Greetings from the India Holy Quran Award.
+
+Our coordination team has attempted to reach your institution and candidate THREE (3) times by phone regarding verification for the Kerala Initial Screening of the India Holy Quran Award, but the calls were unattended (${student.last_call_outcome || 'Unattended'}).
+
+Candidate & Institution Details:
+• Student Name: ${student.student_name}
+• Registration Number: ${student.registration_number}
+• Examination Category: ${student.exam_category}
+• Institution: ${instName}
+• District: ${student.district}
+• Total Unattended Calls: 3
+
+Since 3 phone attempts have been exhausted, we kindly request the institution authority or coordinator to urgently contact our coordination team or reply to this email (${email}) to confirm the student's screening participation and receive schedule information.
+
+Thank you.
+
+${estName}
+Official Contact Phone: ${phone}
+Official Email: ${email}
+Office Calling Hours: ${callingHours}
+Website: ${website}`;
+  }
 
   return `Dear ${student.student_name} / Parent,
 
 Greetings from the India Holy Quran Award.
 
-${attemptPhrase}
+Our coordination team attempted to reach you by phone (${student.last_call_outcome || 'Unattended'}) regarding your participation in the Kerala Initial Screening of the India Holy Quran Award.
 
 Unfortunately, we have not been able to reach you.
 
@@ -81,8 +108,12 @@ async function sendGenericEmail({ to, subject, text }, db = getDb()) {
   }
   const settings = getSettingsMap(db);
   const transporter = getTransporter(settings);
+  const senderFrom =
+    settings.email_from ||
+    (config.email && config.email.from) ||
+    'India Holy Quran Award <info@indiaquranaward.com>';
   const info = await transporter.sendMail({
-    from: config.email.from,
+    from: senderFrom,
     to,
     subject,
     text,
@@ -129,10 +160,14 @@ async function attemptEmailDelivery(emailRecordId, db = getDb()) {
   const settings = getSettingsMap(db);
   const transporter = getTransporter(settings);
   const nextAttempt = (row.attempt_count || 0) + 1;
+  const senderFrom =
+    settings.email_from ||
+    (config.email && config.email.from) ||
+    'India Holy Quran Award <info@indiaquranaward.com>';
 
   try {
     const info = await transporter.sendMail({
-      from: config.email.from,
+      from: senderFrom,
       to: row.recipient_email,
       subject: row.subject,
       text: row.body,
@@ -228,11 +263,32 @@ async function triggerThreeAttemptEmail(studentId, actorUser = null, db = getDb(
   const maxRetries = Number(settings.email_retry_max || 3);
   const subject = EMAIL_SUBJECT_THREE_ATTEMPTS;
   const body = buildUnattendedEmailBody(student, settings, student.valid_attempt_count || 3);
-  const targetEmail = isValidEmail(student.email)
-    ? student.email.trim()
-    : isValidEmail(student.coordinator_email)
-      ? student.coordinator_email.trim()
-      : null;
+
+  // Prioritize institution email: supervisor_email from institutions, then coordinator_email, then student.email
+  let targetEmail = null;
+  let recipientName = student.coordinator_name || student.institution_name || student.student_name;
+
+  if (student.institution_id) {
+    const inst = db
+      .prepare('SELECT name, supervisor_name, supervisor_email FROM institutions WHERE id = ?')
+      .get(student.institution_id);
+    if (inst && isValidEmail(inst.supervisor_email)) {
+      targetEmail = inst.supervisor_email.trim();
+      recipientName = inst.supervisor_name || inst.name || recipientName;
+    }
+  }
+
+  if (!targetEmail && isValidEmail(student.coordinator_email)) {
+    targetEmail = student.coordinator_email.trim();
+    if (student.coordinator_name) {
+      recipientName = student.coordinator_name;
+    }
+  }
+
+  if (!targetEmail && isValidEmail(student.email)) {
+    targetEmail = student.email.trim();
+    recipientName = student.student_name;
+  }
 
   if (!targetEmail) {
     const info = db

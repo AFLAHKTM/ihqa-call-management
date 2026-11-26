@@ -87,6 +87,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     assert.equal(r3.student.valid_attempt_count, 3);
     assert.equal(r3.student.communication_status, 'Email Notification Sent');
     assert.equal(sentMessages.length, 1);
+    assert.equal(sentMessages[0].from, 'India Holy Quran Award <info@indiaquranaward.com>');
     assert.equal(sentMessages[0].subject, EMAIL_SUBJECT_THREE_ATTEMPTS);
     assert.match(sentMessages[0].text, /Dear Test Student Ali \/ Parent,/);
 
@@ -94,6 +95,42 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     const dupCheck = await triggerThreeAttemptEmail(sid, staffUser, db);
     assert.equal(dupCheck.duplicatePrevented, true);
     assert.equal(sentMessages.length, 1);
+  });
+
+  it('sends 3-attempt automail from info@indiaquranaward.com to mail of institution', async () => {
+    db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
+    const instInfo = db
+      .prepare(
+        `INSERT INTO institutions (name, district, supervisor_name, supervisor_email)
+         VALUES ('DARUL HUDA ISLAMIC UNIVERSITY', 'Malappuram East', 'Dr. Bahauddeen Nadwi', 'principal@darulhuda.edu.in')`
+      )
+      .run();
+    const instId = Number(instInfo.lastInsertRowid);
+
+    const studInfo = db
+      .prepare(
+        `INSERT INTO students (
+          registration_number, student_name, parent_name, email, coordinator_email,
+          institution_id, institution_name, district, exam_category, assigned_staff_id, communication_status
+        ) VALUES ('TEST-INST-001', 'Zayd Ahmed', 'Ahmed', 'zayd@personal.com', 'coordinator@darulhuda.edu.in',
+          ?, 'DARUL HUDA ISLAMIC UNIVERSITY', 'Malappuram East', 'Holy Quran Recitation', ?, 'Pending First Call')`
+      )
+      .run(instId, staffUser.id);
+    const sid = Number(studInfo.lastInsertRowid);
+
+    sentMessages.length = 0;
+    await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'Switched Off' }, db);
+    await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'Not Reachable' }, db);
+    const r3 = await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'Busy' }, db);
+
+    assert.equal(r3.student.valid_attempt_count, 3);
+    assert.equal(r3.student.communication_status, 'Email Notification Sent');
+    assert.equal(sentMessages.length, 1);
+    assert.equal(sentMessages[0].from, 'India Holy Quran Award <info@indiaquranaward.com>');
+    assert.equal(sentMessages[0].to, 'principal@darulhuda.edu.in');
+    assert.match(sentMessages[0].text, /DARUL HUDA ISLAMIC UNIVERSITY/);
+    assert.match(sentMessages[0].text, /Zayd Ahmed/);
+    assert.match(sentMessages[0].text, /info@indiaquranaward\.com/);
   });
 
   it('stops unreachable workflow on successful contact', async () => {

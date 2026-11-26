@@ -1266,6 +1266,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('s-max-attempts').value = 3;
     document.getElementById('s-retry-hours').value = 4;
     document.getElementById('s-telephony-provider').value = 'device_phone';
+    document.getElementById('s-official-email').value = 'info@indiaquranaward.com';
+    document.getElementById('s-official-website').value = 'https://indiaquranaward.com';
     document.getElementById('s-auto-email').checked = true;
     document.getElementById('s-auto-unattended-email').checked = true;
     showToast('Loaded Establishment Office defaults — click Save Configuration to apply');
