@@ -770,6 +770,105 @@ function updateStudentContactAndStatus(studentId, updates, actorUser, db = getDb
   return getStudentById(studentId, db);
 }
 
+function undoLastCallAttempt(studentId, actorUser = null, db = getDb()) {
+  const student = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
+  if (!student) throw new Error('Student not found');
+
+  return withTransaction(db, () => {
+    // Find the latest valid call attempt
+    const latestAttempt = db
+      .prepare(
+        `SELECT * FROM call_attempts
+         WHERE student_id = ? AND is_valid_attempt = 1
+         ORDER BY id DESC LIMIT 1`
+      )
+      .get(studentId);
+
+    if (!latestAttempt) {
+      throw new Error('No call attempt to undo for this student');
+    }
+
+    // Delete the latest call attempt
+    db.prepare('DELETE FROM call_attempts WHERE id = ?').run(latestAttempt.id);
+
+    // If an email notification was queued/sent for this specific 3-attempt sequence, revert it
+    if (student.valid_attempt_count >= 3 && student.communication_status === 'Email Notification Sent') {
+      db.prepare(
+        `DELETE FROM email_notifications
+         WHERE student_id = ? AND sequence_number = ?`
+      ).run(studentId, student.three_attempt_sequence_id || 1);
+    }
+
+    // Query remaining valid call attempts
+    const remaining = db
+      .prepare(
+        `SELECT * FROM call_attempts
+         WHERE student_id = ? AND is_valid_attempt = 1
+         ORDER BY id DESC`
+      )
+      .all(studentId);
+
+    const newValidCount = remaining.length;
+    let newStatus;
+    let lastOutcome = null;
+    let lastCalledAt = null;
+    let nextFollowupAt = null;
+
+    if (newValidCount === 0) {
+      newStatus = student.assigned_staff_id ? 'Pending First Call' : 'Not Assigned';
+      lastOutcome = null;
+      lastCalledAt = null;
+      nextFollowupAt = null;
+    } else {
+      const last = remaining[0];
+      lastOutcome = last.call_outcome;
+      lastCalledAt = last.called_at;
+      nextFollowupAt = last.followup_date;
+
+      if (SUCCESS_OUTCOMES.has(lastOutcome)) {
+        newStatus = 'Successfully Contacted';
+      } else if (newValidCount === 1) {
+        newStatus = 'Pending Second Call';
+      } else if (newValidCount === 2) {
+        newStatus = 'Pending Third Call';
+      } else {
+        newStatus = 'Attempt 3 Completed';
+      }
+    }
+
+    db.prepare(
+      `UPDATE students
+       SET communication_status = ?,
+           valid_attempt_count = ?,
+           last_call_outcome = ?,
+           last_called_at = ?,
+           next_followup_at = ?,
+           manual_followup_required = 0,
+           email_notified_sequence = CASE WHEN ? = 0 THEN 0 ELSE email_notified_sequence END,
+           updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(newStatus, newValidCount, lastOutcome, lastCalledAt, nextFollowupAt, newValidCount, studentId);
+
+    logAudit(
+      {
+        user: actorUser,
+        action: 'CALL_ATTEMPT_UNDONE',
+        entityType: 'student',
+        entityId: studentId,
+        details: {
+          deletedAttemptId: latestAttempt.id,
+          undoneOutcome: latestAttempt.call_outcome,
+          restoredStatus: newStatus,
+          restoredValidCount: newValidCount,
+        },
+      },
+      db
+    );
+
+    return getStudentById(studentId, db);
+  });
+}
+
 module.exports = {
   getStudentById,
   getStudentCallHistory,
@@ -778,5 +877,6 @@ module.exports = {
   assignStudents,
   shuffleBySection,
   logCallAttempt,
+  undoLastCallAttempt,
   updateStudentContactAndStatus,
 };

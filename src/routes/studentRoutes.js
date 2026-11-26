@@ -10,6 +10,7 @@ const {
   assignStudents,
   shuffleBySection,
   logCallAttempt,
+  undoLastCallAttempt,
   updateStudentContactAndStatus,
 } = require('../services/callWorkflowService');
 const { initiateClickToCall } = require('../services/telephonyService');
@@ -214,6 +215,44 @@ router.post('/:id/send-unattended-email', async (req, res) => {
   try {
     const result = await triggerThreeAttemptEmail(student.id, req.user, db);
     res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/undo-calls', async (req, res) => {
+  const db = getDb();
+  const { studentIds } = req.body || {};
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    return res.status(400).json({ error: 'studentIds array is required' });
+  }
+  try {
+    const results = [];
+    for (const sid of studentIds) {
+      const student = getStudentById(Number(sid), db);
+      if (!student) continue;
+      if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
+        continue;
+      }
+      const updated = undoLastCallAttempt(Number(sid), req.user, db);
+      results.push(updated);
+    }
+    res.json({ ok: true, count: results.length, students: results });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/calls/undo', async (req, res) => {
+  const db = getDb();
+  const student = getStudentById(Number(req.params.id), db);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const updated = undoLastCallAttempt(Number(req.params.id), req.user, db);
+    res.json({ ok: true, student: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

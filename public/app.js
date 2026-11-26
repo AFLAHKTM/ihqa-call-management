@@ -301,6 +301,19 @@ function renderStudentsTable(rows) {
         new Date(primary.next_followup_at.replace(' ', 'T') + 'Z').getTime() < Date.now() &&
         ['Pending Second Call', 'Pending Third Call', 'Callback Scheduled'].includes(primary.communication_status);
 
+      const isAttended =
+        primary.communication_status === 'Successfully Contacted' ||
+        primary.communication_status === 'Follow-up Completed';
+      const actionHtml = isAttended
+        ? `<div class="row-action-btns is-attended">
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">✅ Attended</button>
+            <button type="button" class="btn btn-sm row-undo-btn undo-call-row-btn" data-ids="${allIds.join(',')}" title="Undo Attended — Revert to previous status">↩ Undo</button>
+          </div>`
+        : `<div class="row-action-btns">
+            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">✅ Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
+          </div>`;
+
       return `<tr>
         ${isSupOrAdmin ? `<td data-label="Select"><input type="checkbox" class="row-chk" data-ids="${allIds.join(',')}" ${checked} /></td>` : ''}
         <td data-label="#"><strong>${idx + 1}</strong></td>
@@ -331,10 +344,7 @@ function renderStudentsTable(rows) {
             <div class="muted small" style="margin-top:2px">${escapeHtml(staffNames)}</div>
             ${primary.next_followup_at ? `<div class="small ${isOverdue ? 'badge badge-danger' : 'muted'}">Follow-up: ${escapeHtml(primary.next_followup_at)}</div>` : ''}
           </div>
-          <div class="row-action-btns">
-            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">✅ Attend</button>
-            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
-          </div>
+          ${actionHtml}
         </td>
       </tr>`;
     })
@@ -356,6 +366,29 @@ function renderStudentsTable(rows) {
         await quickSaveCallOutcome(ids, outcome, contactType);
       } finally {
         btn.disabled = false;
+      }
+    });
+  });
+  document.querySelectorAll('.undo-call-row-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ids = String(btn.dataset.ids || '')
+        .split(',')
+        .filter(Boolean)
+        .map(Number);
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await api('/api/students/undo-calls', {
+          method: 'POST',
+          body: JSON.stringify({ studentIds: ids }),
+        });
+        showToast('↩ Call reverted to Pending');
+        await loadAllData();
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '↩ Undo';
       }
     });
   });
@@ -567,6 +600,29 @@ async function openCallingDesk(studentId, activeSession = null) {
         )
         .join('')
     : '<div class="muted small">No automatic email notifications triggered.</div>';
+
+  const isAttended =
+    student.communication_status === 'Successfully Contacted' ||
+    student.communication_status === 'Follow-up Completed';
+  const attendBtn = document.getElementById('quick-attend-btn');
+  const unattendBtn = document.getElementById('quick-unattend-btn');
+  const undoBtn = document.getElementById('quick-undo-btn');
+
+  if (attendBtn && unattendBtn && undoBtn) {
+    if (isAttended) {
+      attendBtn.classList.add('attended-done');
+      attendBtn.textContent = '✅ Attended';
+      attendBtn.disabled = true;
+      unattendBtn.classList.add('hidden');
+      undoBtn.classList.remove('hidden');
+    } else {
+      attendBtn.classList.remove('attended-done');
+      attendBtn.textContent = '✅ Attend';
+      attendBtn.disabled = false;
+      unattendBtn.classList.remove('hidden');
+      undoBtn.classList.add('hidden');
+    }
+  }
 
   document.getElementById('calling-drawer').classList.remove('hidden');
 }
@@ -1043,6 +1099,25 @@ document.addEventListener('DOMContentLoaded', () => {
       label: document.getElementById('d-student-name').textContent || '',
     });
   });
+
+  const deskUndoBtn = document.getElementById('quick-undo-btn');
+  if (deskUndoBtn) {
+    deskUndoBtn.addEventListener('click', async () => {
+      deskUndoBtn.disabled = true;
+      deskUndoBtn.textContent = '...';
+      try {
+        await api(`/api/students/${state.activeStudentId}/calls/undo`, { method: 'POST' });
+        showToast('↩ Call reverted to Pending');
+        await loadAllData();
+        await openCallingDesk(state.activeStudentId);
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        deskUndoBtn.disabled = false;
+        deskUndoBtn.textContent = '↩ Undo Attended';
+      }
+    });
+  }
 
   const unattendModal = document.getElementById('unattend-modal');
   document.getElementById('close-unattend-modal').addEventListener('click', () => {

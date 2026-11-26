@@ -2,7 +2,7 @@ const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { initDatabase, closeDb, setDb } = require('../src/db/database');
 const { seedDatabase } = require('../src/db/seedData');
-const { logCallAttempt, assignStudents } = require('../src/services/callWorkflowService');
+const { logCallAttempt, assignStudents, undoLastCallAttempt } = require('../src/services/callWorkflowService');
 const {
   setCustomTransporter,
   triggerThreeAttemptEmail,
@@ -274,5 +274,28 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     const bulk = await sendAutoEmailToUnattendedStudents(adminUser, db);
     assert.equal(bulk.sentCount, 1);
     assert.equal(sentMessages.length, 2);
+  });
+
+  it('reverts attended call and restores previous pending state via undo', async () => {
+    const sid = createTestStudent({ reg: 'TEST-UNDO-001', email: 'undo@example.org' });
+    const initial = db.prepare('SELECT * FROM students WHERE id = ?').get(sid);
+    assert.equal(initial.communication_status, 'Pending First Call');
+    assert.equal(initial.valid_attempt_count, 0);
+
+    // Mark as attended
+    await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'Successfully Contacted' }, db);
+    const attended = db.prepare('SELECT * FROM students WHERE id = ?').get(sid);
+    assert.equal(attended.communication_status, 'Successfully Contacted');
+    assert.equal(attended.valid_attempt_count, 1);
+
+    // Undo the attended call
+    const undone = undoLastCallAttempt(sid, staffUser, db);
+    assert.equal(undone.communication_status, 'Pending First Call');
+    assert.equal(undone.valid_attempt_count, 0);
+    assert.equal(undone.last_call_outcome, null);
+
+    // Call history for the student should have 0 valid attempts
+    const attempts = db.prepare('SELECT * FROM call_attempts WHERE student_id = ?').all(sid);
+    assert.equal(attempts.length, 0);
   });
 });
