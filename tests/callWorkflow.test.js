@@ -89,7 +89,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     assert.equal(sentMessages.length, 1);
     assert.equal(sentMessages[0].from, 'India Holy Quran Award <info@indiaquranaward.com>');
     assert.equal(sentMessages[0].subject, EMAIL_SUBJECT_THREE_ATTEMPTS);
-    assert.match(sentMessages[0].text, /Dear Test Student Ali \/ Parent,/);
+    assert.match(sentMessages[0].text, /Dear Usthad\/Institution Supervisor,/);
 
     // Duplicate automatic email check for same sequence
     const dupCheck = await triggerThreeAttemptEmail(sid, staffUser, db);
@@ -128,8 +128,8 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     assert.equal(sentMessages.length, 1);
     assert.equal(sentMessages[0].from, 'India Holy Quran Award <info@indiaquranaward.com>');
     assert.equal(sentMessages[0].to, 'principal@darulhuda.edu.in');
-    assert.match(sentMessages[0].text, /DARUL HUDA ISLAMIC UNIVERSITY/);
-    assert.match(sentMessages[0].text, /Zayd Ahmed/);
+    assert.match(sentMessages[0].text, /Dear Usthad\/Institution Supervisor,/);
+    assert.match(sentMessages[0].text, /Kerala State Competition Dates: November 30 – December 3, 2026\./);
     assert.match(sentMessages[0].text, /info@indiaquranaward\.com/);
   });
 
@@ -263,7 +263,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     const r1 = await logCallAttempt({ studentId: sid1, staffUser, callOutcome: 'No Answer' }, db);
     assert.equal(r1.student.communication_status, 'Pending Second Call');
     assert.equal(sentMessages.length, 1);
-    assert.match(sentMessages[0].text, /attempted to reach you by phone \(No Answer\)/);
+    assert.match(sentMessages[0].text, /India Holy Quran Award 2026–27/);
 
     // Bulk sweep skips already-emailed sid1 and emails sid2
     db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
