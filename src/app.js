@@ -42,7 +42,12 @@ function createApp() {
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ error: 'API route not found' });
     }
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+    const indexPath = path.join(__dirname, '..', 'public', 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err && !res.headersSent) {
+        res.redirect(302, '/index.html');
+      }
+    });
   });
 
   return app;

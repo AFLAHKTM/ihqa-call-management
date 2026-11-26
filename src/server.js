@@ -10,9 +10,12 @@ if (seedResult.seeded) {
   console.log('Initialized & seeded Kerala Initial Screening dataset:', seedResult);
 }
 
-startScheduler(60000);
-
 const app = createApp();
-app.listen(config.port, () => {
-  console.log(`IHQA Kerala Call Management System listening on http://localhost:${config.port}`);
-});
+if (require.main === module) {
+  startScheduler(60000);
+  app.listen(config.port, () => {
+    console.log(`IHQA Kerala Call Management System listening on http://localhost:${config.port}`);
+  });
+}
+
+module.exports = app;
