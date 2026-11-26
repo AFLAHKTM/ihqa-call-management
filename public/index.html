@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CALL MANAGEMENT — Indian Holy Quran Award (Kerala Initial Screening)</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Login Gate -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-emblem">IHQA</div>
+      <h1>Indian Holy Quran Award</h1>
+      <p class="subtitle">Kerala Initial Screening — Call Management &amp; Follow-Up System</p>
+      <div class="security-notice">
+        Restricted Administration Portal. Student &amp; parent contact details are protected and audited.
+      </div>
+      <form id="login-form" class="login-form">
+        <label>
+          Username
+          <input type="text" id="login-username" required autocomplete="username" placeholder="e.g. admin" />
+        </label>
+        <label>
+          Password
+          <input type="password" id="login-password" required autocomplete="current-password" placeholder="Enter password" />
+        </label>
+        <div id="login-error" class="error-banner hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Sign In to Call Management</button>
+      </form>
+      <div class="demo-accounts">
+        <div class="demo-title">Quick Role Sign-In (Seeded Accounts)</div>
+        <div class="demo-buttons">
+          <button type="button" class="btn btn-outline btn-sm" data-demo-user="admin" data-demo-pass="Admin@2026">State Admin</button>
+          <button type="button" class="btn btn-outline btn-sm" data-demo-user="supervisor" data-demo-pass="Supervisor@2026">Supervisor</button>
+          <button type="button" class="btn btn-outline btn-sm" data-demo-user="saeed_adany" data-demo-pass="Staff@2026">Saeed Adany</button>
+          <button type="button" class="btn btn-outline btn-sm" data-demo-user="shahid_adany" data-demo-pass="Staff@2026">Shahid Abdullah Adany</button>
+          <button type="button" class="btn btn-outline btn-sm" data-demo-user="usman_adany" data-demo-pass="Staff@2026">Usman Adany</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Admin Shell -->
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-row">
+          <span class="logo-badge">IHQA</span>
+          <div>
+            <div class="logo-title">CALL MANAGEMENT</div>
+            <div class="logo-sub">Kerala Initial Screening</div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span>Call Dashboard &amp; Queue</span>
+        </button>
+        <button class="nav-item" data-view="followups">
+          <span>Callbacks &amp; Follow-Ups</span>
+        </button>
+        <button class="nav-item" data-view="staff">
+          <span>Calling Staff &amp; Targets</span>
+        </button>
+        <button class="nav-item" data-view="notifications">
+          <span>Emails &amp; Notifications</span>
+          <span id="nav-notif-badge" class="pill-count hidden">0</span>
+        </button>
+        <button class="nav-item" data-view="reports">
+          <span>Reports &amp; Exports</span>
+        </button>
+        <button class="nav-item admin-supervisor-only" data-view="settings">
+          <span>Rules, Telephony &amp; Audit</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div id="current-user-name" class="user-name">-</div>
+          <div id="current-user-role" class="user-role">-</div>
+        </div>
+        <button id="logout-btn" class="btn btn-outline btn-sm btn-full">Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button type="button" id="mobile-menu-btn" class="btn btn-outline btn-sm mobile-only-btn" aria-label="Open menu">☰ Menu</button>
+          <div>
+            <h2 id="view-title">CALL MANAGEMENT — Dashboard</h2>
+            <p id="view-subtitle" class="muted">India Holy Quran Award 2026-27 · Kerala Coordination &amp; Verification</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button id="refresh-all-btn" class="btn btn-outline btn-sm">Refresh</button>
+          <button id="open-notif-btn" class="btn btn-outline btn-sm">
+            Alerts <span id="topbar-notif-count" class="badge badge-warn">0</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW 1: DASHBOARD & QUEUE -->
+      <section id="view-dashboard" class="view-section">
+        <div class="kpi-header-row">
+          <div id="kpi-grid" class="kpi-grid"></div>
+          <div class="kpi-toggle-wrap">
+            <button type="button" id="toggle-all-kpis-btn" class="btn btn-outline btn-sm">Show All 10 Stats</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Students to Call <span id="queue-count-badge" class="badge badge-neutral">0</span></h3>
+            <div class="header-actions">
+              <button type="button" id="open-shuffle-modal-btn" class="btn btn-primary btn-sm admin-supervisor-only">🔀 Shuffle by Section</button>
+              <button id="open-add-student-btn" class="btn btn-outline btn-sm admin-supervisor-only">+ Add Student</button>
+              <button id="bulk-assign-btn" class="btn btn-outline btn-sm admin-supervisor-only">Assign Selected</button>
+            </div>
+          </div>
+
+          <!-- Section Switcher (Qirath / Tafseer) -->
+          <div class="section-tabs" id="section-tabs">
+            <button type="button" class="section-tab active" data-section="">All Sections (<span id="cnt-all">0</span>)</button>
+            <button type="button" class="section-tab" data-section="Holy Quran Recitation">Institution Winners Status — Qirath (<span id="cnt-qirath">0</span>)</button>
+            <button type="button" class="section-tab" data-section="Complete Memorization of the Holy Quran with Tafsir">Institution Winners Status — Tafseer (<span id="cnt-tafseer">0</span>)</button>
+          </div>
+
+          <!-- Simple Instant Search & Quick Filter Pills -->
+          <div class="quick-search-bar">
+            <input type="search" id="f-quick-search" placeholder="Search by student, institution, district, or phone..." autocomplete="off" />
+            <button type="button" id="shuffle-view-order-btn" class="btn btn-outline btn-sm" title="Shuffle display order">🔀 Shuffle List</button>
+            <button type="button" id="toggle-more-filters-btn" class="btn btn-outline btn-sm">More Filters</button>
+          </div>
+
+          <div class="quick-pills" id="quick-status-pills">
+            <button type="button" class="pill-filter active" data-quick-status="">All</button>
+            <button type="button" class="pill-filter" data-quick-status="Pending First Call">Pending First Call</button>
+            <button type="button" class="pill-filter" data-quick-status="Callback Scheduled">Callbacks</button>
+            <button type="button" class="pill-filter" data-quick-status="Successfully Contacted">Contacted</button>
+            <button type="button" class="pill-filter" data-quick-attempts="3">3+ Attempts</button>
+            <button type="button" class="pill-filter" data-quick-status="Number Correction Required">Wrong Number</button>
+          </div>
+
+          <form id="filter-form" class="filter-grid hidden">
+            <select id="f-district"><option value="">All Districts</option></select>
+            <input type="text" id="f-institution" placeholder="Institution name..." />
+            <input type="text" id="f-student-name" placeholder="Student name..." />
+            <input type="text" id="f-reg-no" placeholder="Registration no..." />
+            <select id="f-staff" class="admin-supervisor-only"><option value="">All Assigned Staff</option><option value="unassigned">Unassigned</option></select>
+            <select id="f-status"><option value="">All Call / Comm. Statuses</option></select>
+            <select id="f-attempts">
+              <option value="">Any Attempt Count</option>
+              <option value="0">0 Attempts</option>
+              <option value="1">1 Attempt</option>
+              <option value="2">2 Attempts</option>
+              <option value="3">3+ Attempts</option>
+            </select>
+            <div class="date-range">
+              <input type="date" id="f-date-from" title="From Date" />
+              <input type="date" id="f-date-to" title="To Date" />
+            </div>
+            <div class="filter-btns">
+              <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+              <button type="button" id="reset-filters-btn" class="btn btn-outline btn-sm">Reset</button>
+            </div>
+          </form>
+
+          <div id="bulk-assign-bar" class="bulk-bar hidden admin-supervisor-only">
+            <span id="bulk-selected-count">0 selected</span>
+            <select id="bulk-staff-select"></select>
+            <button type="button" id="confirm-bulk-assign-btn" class="btn btn-primary btn-sm">Confirm Assignment</button>
+            <button type="button" id="cancel-bulk-assign-btn" class="btn btn-outline btn-sm">Cancel</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th class="admin-supervisor-only"><input type="checkbox" id="select-all-students" /></th>
+                  <th>Sl No</th>
+                  <th>Reg No</th>
+                  <th>Student &amp; Contact</th>
+                  <th>District &amp; Institution</th>
+                  <th>Category</th>
+                  <th>Assigned Staff</th>
+                  <th>Attempts</th>
+                  <th>Communication Status</th>
+                  <th>Last Outcome / Follow-up</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="students-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: CALLBACKS & FOLLOW-UPS -->
+      <section id="view-followups" class="view-section hidden">
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-header"><h3>Scheduled &amp; Overdue Callbacks</h3></div>
+            <div id="callbacks-list" class="stack-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Three-Attempt &amp; Manual Follow-up Cases</h3></div>
+            <div id="three-attempt-list" class="stack-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Invalid / Wrong Numbers Queue</h3></div>
+            <div id="invalid-numbers-list" class="stack-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: STAFF MANAGEMENT & PERFORMANCE -->
+      <section id="view-staff" class="view-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <h3>Calling Staff Performance &amp; Daily Targets</h3>
+            <div class="header-actions admin-supervisor-only">
+              <button id="open-add-staff-btn" class="btn btn-primary btn-sm admin-only">+ Add Staff Member</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Staff Member</th>
+                  <th>Role</th>
+                  <th>Daily Target</th>
+                  <th>Assigned Contacts</th>
+                  <th>Calls Completed</th>
+                  <th>Calls Today</th>
+                  <th>Successful</th>
+                  <th>Unreachable</th>
+                  <th>Pending Follow-ups</th>
+                  <th>3-Attempt Cases</th>
+                  <th>Daily Completion %</th>
+                </tr>
+              </thead>
+              <tbody id="staff-perf-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card admin-supervisor-only">
+          <div class="card-header"><h3>Reassign Pending Students</h3></div>
+          <form id="reassign-form" class="inline-form">
+            <label>From Staff <select id="reassign-from"></select></label>
+            <label>To Staff <select id="reassign-to"></select></label>
+            <button type="submit" class="btn btn-primary btn-sm">Reassign All Pending Contacts</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- VIEW 4: EMAILS & NOTIFICATIONS -->
+      <section id="view-notifications" class="view-section hidden">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3>In-Platform &amp; Multi-Channel Alerts</h3>
+              <button id="mark-all-read-btn" class="btn btn-outline btn-sm">Mark All Read</button>
+            </div>
+            <div id="notifications-list" class="stack-list"></div>
+          </div>
+
+          <div class="card admin-supervisor-only">
+            <div class="card-header">
+              <h3>Automatic 3-Attempt Email Deliveries</h3>
+              <button id="process-retries-btn" class="btn btn-outline btn-sm admin-only">Run Retry Queue</button>
+            </div>
+            <div id="failed-emails-alert" class="error-banner hidden"></div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Sent / Retries</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="emails-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: REPORTS & EXPORTS -->
+      <section id="view-reports" class="view-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <h3>Operational &amp; Compliance Reports</h3>
+            <div class="header-actions">
+              <button id="export-csv-btn" class="btn btn-outline btn-sm">Export CSV</button>
+              <button id="export-excel-btn" class="btn btn-primary btn-sm">Export Excel (.xls)</button>
+            </div>
+          </div>
+          <div class="report-tabs" id="report-tabs">
+            <button class="tab-btn active" data-report="district">District-wise</button>
+            <button class="tab-btn" data-report="institution">Institution-wise</button>
+            <button class="tab-btn" data-report="staff">Staff Performance</button>
+            <button class="tab-btn" data-report="daily">Daily Completion</button>
+            <button class="tab-btn" data-report="three_attempt">Three-Attempt Unreachable</button>
+            <button class="tab-btn" data-report="email">Email Notifications</button>
+            <button class="tab-btn" data-report="callbacks">Pending Callbacks</button>
+            <button class="tab-btn" data-report="invalid_contacts">Invalid Contacts</button>
+          </div>
+          <h4 id="report-title" class="report-heading"></h4>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead id="report-thead"></thead>
+              <tbody id="report-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 6: RULES, TELEPHONY & AUDIT -->
+      <section id="view-settings" class="view-section hidden">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <h3>Follow-up Rules, Email &amp; Channel Configuration</h3>
+              <button id="run-jobs-btn" class="btn btn-outline btn-sm">Run Background Sweep Now</button>
+            </div>
+            <form id="settings-form" class="settings-form">
+              <div class="form-row">
+                <label>Max Attempts Before Email <input type="number" id="s-max-attempts" min="1" max="10" /></label>
+                <label>Retry Interval (Hours) <input type="number" id="s-retry-hours" min="1" max="72" /></label>
+              </div>
+              <div class="form-row">
+                <label>Email Max Retries <input type="number" id="s-email-retries" min="1" max="10" /></label>
+                <label>Data Retention (Days) <input type="number" id="s-retention-days" min="30" max="3650" /></label>
+              </div>
+              <div class="form-row">
+                <label>Telephony Provider
+                  <select id="s-telephony-provider">
+                    <option value="simulated">Simulated Cloud Sandbox</option>
+                    <option value="exotel">Exotel (India Cloud Telephony)</option>
+                    <option value="twilio">Twilio Programmable Voice</option>
+                  </select>
+                </label>
+                <label>Email Provider
+                  <select id="s-email-provider">
+                    <option value="dev-json">Dev Local Transport</option>
+                    <option value="ses">Amazon SES (SMTP)</option>
+                    <option value="smtp">Custom SMTP</option>
+                  </select>
+                </label>
+              </div>
+              <label>Official Contact Phone (in Emails) <input type="text" id="s-official-phone" /></label>
+              <label>Official Contact Email (in Emails) <input type="email" id="s-official-email" /></label>
+              <label>Official Website URL (in Emails) <input type="url" id="s-official-website" /></label>
+              <div class="checkbox-grid">
+                <label class="chk"><input type="checkbox" id="s-auto-email" /> Auto-email after max attempts</label>
+                <label class="chk"><input type="checkbox" id="s-ch-email" /> Email Notification Channel</label>
+                <label class="chk"><input type="checkbox" id="s-ch-inapp" /> In-Platform Notifications</label>
+                <label class="chk"><input type="checkbox" id="s-ch-sms" /> SMS Provider Channel</label>
+                <label class="chk"><input type="checkbox" id="s-ch-wa" /> WhatsApp Provider Channel</label>
+              </div>
+              <div class="privacy-box">
+                <strong>Privacy &amp; Security Policy:</strong> Call recording is strictly <strong>DISABLED</strong> by default. API keys are stored server-side and masked.
+                <div id="creds-summary" class="muted small"></div>
+              </div>
+              <button type="submit" class="btn btn-primary admin-only">Save Configuration</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Security &amp; Call Audit Trail</h3></div>
+            <div class="table-wrap audit-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- STUDENT CALLING INTERFACE DRAWER -->
+  <div id="calling-drawer" class="drawer hidden">
+    <div class="drawer-backdrop" id="close-drawer-backdrop"></div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div>
+          <h3 id="d-student-name">Student Name</h3>
+          <div class="muted" id="d-reg-cat">-</div>
+        </div>
+        <button id="close-drawer-btn" class="btn btn-outline btn-sm">Close</button>
+      </div>
+
+      <div class="drawer-body">
+        <div class="status-strip">
+          <span id="d-comm-status" class="badge">-</span>
+          <span id="d-attempt-badge" class="badge badge-neutral">Attempts: 0/3</span>
+          <span id="d-assigned-staff" class="muted"></span>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-box" id="box-parent-name">
+            <div class="info-label">Parent / Guardian</div>
+            <div id="d-parent-name" class="info-value">-</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">District &amp; Institution</div>
+            <div id="d-inst-district" class="info-value">-</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Supervisor &amp; Contact</div>
+            <div id="d-coordinator" class="info-value">-</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Contact Email</div>
+            <div id="d-email" class="info-value">-</div>
+          </div>
+        </div>
+
+        <!-- Click To Call Bar -->
+        <div class="click-to-call-card">
+          <div class="c2c-title">Click To Call (Phone Call)</div>
+          <div class="c2c-rows">
+            <div class="c2c-row" id="c2c-row-coordinator">
+              <div><strong>Supervisor / Contact:</strong> <span id="d-coord-mobile">-</span></div>
+              <div class="c2c-btns">
+                <a id="tel-coord" class="btn btn-primary btn-sm phone-call-btn" data-contact="coordinator" href="#">📞 Phone Call</a>
+                <button type="button" class="btn btn-outline btn-sm c2c-api-btn cloud-only hidden" data-contact="coordinator">Cloud Call</button>
+              </div>
+            </div>
+            <div class="c2c-row" id="c2c-row-student">
+              <div><strong>Student Mobile:</strong> <span id="d-student-mobile">-</span></div>
+              <div class="c2c-btns">
+                <a id="tel-student" class="btn btn-primary btn-sm phone-call-btn" data-contact="student" href="#">📞 Phone Call</a>
+                <button type="button" class="btn btn-outline btn-sm c2c-api-btn cloud-only hidden" data-contact="student">Cloud Call</button>
+              </div>
+            </div>
+            <div class="c2c-row" id="c2c-row-parent">
+              <div><strong>Parent Mobile:</strong> <span id="d-parent-mobile">-</span></div>
+              <div class="c2c-btns">
+                <a id="tel-parent" class="btn btn-primary btn-sm phone-call-btn" data-contact="parent" href="#">📞 Phone Call</a>
+                <button type="button" class="btn btn-outline btn-sm c2c-api-btn cloud-only hidden" data-contact="parent">Cloud Call</button>
+              </div>
+            </div>
+          </div>
+          <div id="active-call-banner" class="call-session-banner hidden"></div>
+        </div>
+
+        <!-- Log Call Outcome Form -->
+        <form id="log-call-form" class="call-form">
+          <h4>Step 2: Tap What Happened on the Call</h4>
+          <input type="hidden" id="log-call-session-id" />
+
+          <div class="quick-outcomes" id="quick-outcomes">
+            <button type="button" class="outcome-btn" data-outcome="Successfully Contacted">✅ Contacted</button>
+            <button type="button" class="outcome-btn" data-outcome="No Answer">📵 No Answer</button>
+            <button type="button" class="outcome-btn" data-outcome="Not Reachable">📡 Not Reachable</button>
+            <button type="button" class="outcome-btn" data-outcome="Switched Off">🔋 Switched Off</button>
+            <button type="button" class="outcome-btn" data-outcome="Callback Requested">📅 Callback</button>
+            <button type="button" class="outcome-btn" data-outcome="Invalid / Wrong Number">❌ Wrong Number</button>
+          </div>
+
+          <div class="form-row">
+            <label>Contact Called
+              <select id="log-contact-type">
+                <option value="coordinator">Supervisor / Contact</option>
+                <option value="student">Student Mobile</option>
+                <option value="parent">Parent Mobile</option>
+              </select>
+            </label>
+            <label>Call Outcome *
+              <select id="log-outcome" required></select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>Next Follow-up (optional)
+              <input type="datetime-local" id="log-followup-date" />
+            </label>
+            <label>Duration in seconds (optional)
+              <input type="number" id="log-duration" min="0" placeholder="e.g. 95" />
+            </label>
+          </div>
+          <label>Quick Note (optional)
+            <textarea id="log-remarks" rows="2" placeholder="Tap a quick note below or type..."></textarea>
+          </label>
+          <div class="quick-notes">
+            <button type="button" class="chip" data-note="Informed about the examination date.">Exam date informed</button>
+            <button type="button" class="chip" data-note="Parent requested another call tomorrow.">Callback tomorrow</button>
+            <button type="button" class="chip" data-note="Student confirmed participation.">Confirmed participation</button>
+            <button type="button" class="chip" data-note="Number switched off.">Switched off</button>
+            <button type="button" class="chip" data-note="Wrong contact number.">Wrong number</button>
+          </div>
+          <label class="chk"><input type="checkbox" id="log-complete-followup" /> Mark Follow-up Completed</label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">Save Call Result</button>
+            <button type="button" id="cancel-initiation-btn" class="btn btn-outline btn-sm">Accidental Tap (Do Not Count)</button>
+          </div>
+        </form>
+
+        <!-- Contact Correction Mini Form (Collapsible for simplicity) -->
+        <details class="mini-edit-details">
+          <summary>Edit Phone / Email / Status</summary>
+          <form id="edit-contact-form" class="mini-edit-form" style="border:none;padding:10px 0 0">
+            <div class="form-row">
+              <label>Student Mobile <input type="text" id="e-student-mobile" /></label>
+              <label>Parent Mobile <input type="text" id="e-parent-mobile" /></label>
+            </div>
+            <div class="form-row">
+              <label>Email <input type="email" id="e-email" /></label>
+              <label>Override Status <select id="e-status"></select></label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-outline btn-sm">Update Details</button>
+              <button type="button" id="reset-invalid-btn" class="btn btn-outline btn-sm">Clear Wrong-Number Flag</button>
+            </div>
+          </form>
+        </details>
+
+        <!-- Previous Calling History -->
+        <div class="history-section">
+          <h4>Previous Calling History</h4>
+          <div id="d-call-history" class="history-list"></div>
+        </div>
+
+        <div class="history-section">
+          <h4>Email Notification History</h4>
+          <div id="d-email-history" class="history-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Register Student -->
+  <div id="student-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Register Student for Calling</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="close-student-modal">Close</button>
+      </div>
+      <form id="add-student-form" class="call-form">
+        <div class="form-row">
+          <label>Registration Number * <input type="text" id="ns-reg" required placeholder="IHQA-KL-26-0201" /></label>
+          <label>Student Name * <input type="text" id="ns-name" required /></label>
+        </div>
+        <div class="form-row">
+          <label>Parent / Guardian Name * <input type="text" id="ns-parent" required /></label>
+          <label>District * <select id="ns-district" required></select></label>
+        </div>
+        <div class="form-row">
+          <label>Student Mobile <input type="text" id="ns-smob" /></label>
+          <label>Parent Mobile <input type="text" id="ns-pmob" /></label>
+        </div>
+        <div class="form-row">
+          <label>Email <input type="email" id="ns-email" /></label>
+          <label>Examination Category * <select id="ns-cat" required></select></label>
+        </div>
+        <div class="form-row">
+          <label>Institution Name * <input type="text" id="ns-inst" required /></label>
+          <label>Assign Staff <select id="ns-staff"><option value="">Unassigned</option></select></label>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Student Record</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Staff -->
+  <div id="staff-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add Calling Staff / Supervisor</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="close-staff-modal">Close</button>
+      </div>
+      <form id="add-staff-form" class="call-form">
+        <div class="form-row">
+          <label>Username * <input type="text" id="nst-user" required /></label>
+          <label>Password * <input type="password" id="nst-pass" required /></label>
+        </div>
+        <div class="form-row">
+          <label>Full Name * <input type="text" id="nst-name" required /></label>
+          <label>Email * <input type="email" id="nst-email" required /></label>
+        </div>
+        <div class="form-row">
+          <label>Phone <input type="text" id="nst-phone" /></label>
+          <label>Role
+            <select id="nst-role">
+              <option value="CALLING_STAFF">CALLING_STAFF</option>
+              <option value="SUPERVISOR">SUPERVISOR</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </label>
+        </div>
+        <label>Daily Calling Target <input type="number" id="nst-target" value="30" min="0" /></label>
+        <button type="submit" class="btn btn-primary">Create Staff Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Shuffle & Assign by Section -->
+  <div id="shuffle-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔀 Shuffle &amp; Assign by Section</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="close-shuffle-modal">Close</button>
+      </div>
+      <form id="shuffle-section-form" class="call-form">
+        <label>Select Section
+          <select id="sh-section">
+            <option value="both">Both Sections (Qirath &amp; Tafseer shuffled separately)</option>
+            <option value="qirath">Institution Winners Status — Qirath (Holy Quran Recitation)</option>
+            <option value="tafseer">Institution Winners Status — Tafseer (Memorization with Tafsir)</option>
+          </select>
+        </label>
+        <div>
+          <div class="small" style="font-weight:600;margin-bottom:6px">Distribute Randomly Among Selected Staff:</div>
+          <div id="sh-staff-checkboxes" class="checkbox-grid"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="sh-only-pending" checked /> Only shuffle pending / uncontacted records</label>
+        <button type="submit" class="btn btn-primary btn-lg">🔀 Shuffle &amp; Distribute Now</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

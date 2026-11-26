@@ -1,0 +1,17 @@
+{
+  "name": "call-scheduling-whatsapp-system",
+  "version": "1.0.0",
+  "description": "Centralised Call Management & Follow-Up System for the Indian Holy Quran Award - Kerala Initial Screening",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/db/runSeed.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.0"
+  }
+}
