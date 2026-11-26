@@ -662,17 +662,31 @@
 
   <!-- MODAL: Unattend Reason Picker -->
   <div id="unattend-modal" class="modal hidden">
-    <div class="modal-card" style="max-width:420px">
+    <div class="modal-card unattend-modal-card" style="max-width:440px">
       <div class="modal-header">
-        <h3>Select Unattend Reason</h3>
-        <button type="button" class="btn btn-outline btn-sm" id="close-unattend-modal">Cancel</button>
+        <div>
+          <h3 style="margin:0;font-size:16px;color:#101828">Unattended Call Reason</h3>
+          <div id="unattend-target-label" class="muted small" style="margin-top:4px"></div>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" id="close-unattend-modal">✕ Cancel</button>
       </div>
-      <div id="unattend-target-label" class="muted small" style="margin-bottom:12px"></div>
       <div class="unattend-choices">
-        <button type="button" class="btn unattend-choice-btn" data-outcome="Switched Off">🔋 Switch Off</button>
-        <button type="button" class="btn unattend-choice-btn" data-outcome="Not Reachable">📡 Unreachable</button>
-        <button type="button" class="btn unattend-choice-btn" data-outcome="Busy">📞 Busy</button>
-        <button type="button" class="btn unattend-choice-btn" data-outcome="Temporary Unavailable">⏳ Temporary Unavailable</button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Switched Off">
+          <span class="choice-icon">🔋</span>
+          <span>Switch off</span>
+        </button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Not Reachable">
+          <span class="choice-icon">📡</span>
+          <span>Unreachable</span>
+        </button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Busy">
+          <span class="choice-icon">📞</span>
+          <span>Busy</span>
+        </button>
+        <button type="button" class="btn unattend-choice-btn" data-outcome="Temporary Unavailable">
+          <span class="choice-icon">⏳</span>
+          <span>Temporary Unavailable</span>
+        </button>
       </div>
     </div>
   </div>

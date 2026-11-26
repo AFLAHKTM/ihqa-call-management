@@ -310,7 +310,10 @@ function renderStudentsTable(rows) {
         </td>
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(g.coordinator_name || primary.student_name)}</div>
-          <div class="sup-contact">${escapeHtml(contactLine || '-')}</div>
+          <div class="sup-contact">
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(primaryPhone)}</a>` : '<span class="muted">No phone</span>'}
+            ${g.coordinator_email ? `<span class="sup-email"> · ${escapeHtml(g.coordinator_email)}</span>` : ''}
+          </div>
         </td>
         <td data-label="Students" class="num-col">
           <span class="students-count">${escapeHtml(g.students_count)}</span>
@@ -321,7 +324,7 @@ function renderStudentsTable(rows) {
         <td data-label="Category Breakdown">
           <div class="cat-breakdown-list">${breakdownHtml}</div>
         </td>
-        <td data-label="Action">
+        <td data-label="Call Status & Action">
           <div style="margin-bottom:6px">
             <span class="badge ${statusBadgeClass(primary.communication_status)}">${escapeHtml(primary.communication_status)}</span>
             <span class="badge badge-neutral">${primary.valid_attempt_count}/3</span>
@@ -329,12 +332,8 @@ function renderStudentsTable(rows) {
             ${primary.next_followup_at ? `<div class="small ${isOverdue ? 'badge badge-danger' : 'muted'}">Follow-up: ${escapeHtml(primary.next_followup_at)}</div>` : ''}
           </div>
           <div class="row-action-btns">
-            ${cleanPhone
-              ? `<a class="btn btn-primary btn-sm row-phone-call" data-id="${primary.id}" data-contact="${primaryType}" href="tel:${escapeHtml(cleanPhone)}">📞 Phone Call</a>`
-              : ''}
-            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted">✅ Attend</button>
-            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}">❌ Unattend</button>
-            <button type="button" class="btn btn-outline btn-sm open-desk-btn" data-id="${primary.id}">Details</button>
+            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">✅ Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
           </div>
         </td>
       </tr>`;
@@ -1026,9 +1025,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const unattendModal = document.getElementById('unattend-modal');
   document.getElementById('close-unattend-modal').addEventListener('click', () => {
-    document.getElementById('unattend-modal').classList.add('hidden');
+    unattendModal.classList.add('hidden');
     state.pendingUnattendTarget = null;
+  });
+  unattendModal.addEventListener('click', (e) => {
+    if (e.target === unattendModal) {
+      unattendModal.classList.add('hidden');
+      state.pendingUnattendTarget = null;
+    }
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !unattendModal.classList.contains('hidden')) {
+      unattendModal.classList.add('hidden');
+      state.pendingUnattendTarget = null;
+    }
   });
 
   document.querySelectorAll('.unattend-choice-btn').forEach((btn) => {
