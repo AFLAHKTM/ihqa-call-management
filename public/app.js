@@ -1189,8 +1189,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
+  document.getElementById('mobile-menu-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     document.querySelector('.sidebar')?.classList.toggle('mobile-open');
+  });
+
+  document.querySelector('.main-content')?.addEventListener('click', () => {
+    document.querySelector('.sidebar')?.classList.remove('mobile-open');
   });
 
   document.getElementById('open-notif-btn').addEventListener('click', () => switchView('notifications'));

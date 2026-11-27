@@ -744,8 +744,9 @@ input:focus, select:focus, textarea:focus {
 .mobile-only-btn { display: none; }
 .row-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 
-@media (max-width: 900px) {
-  .app-shell { flex-direction: column; }
+@media (max-width: 1120px) {
+  .app-shell { flex-direction: column; overflow-x: hidden; }
+  .main-content { width: 100%; overflow-x: hidden; }
   .mobile-only-btn { display: inline-flex; min-height: 38px; }
   .sidebar {
     position: fixed;
