@@ -84,6 +84,9 @@ async function enterApp() {
   document.getElementById('current-user-role').textContent = state.user.role;
   applyRoleVisibility();
   await loadAllData();
+  if (['kashif', 'salman', 'suhail'].includes(state.user.username)) {
+    switchView('unuploaded');
+  }
 }
 
 async function loadAllData() {
