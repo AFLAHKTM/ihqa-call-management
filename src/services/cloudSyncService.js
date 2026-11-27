@@ -62,11 +62,14 @@ async function fetchRemoteSnapshot() {
   return rows[0] || null;
 }
 
-async function pullIfNewer(force = false) {
+async function pullIfNewer(force = false, minAgeMs = 10000) {
   if (!isSyncEnabled()) return { pulled: false, disabled: true };
 
   const now = Date.now();
-  if (!force && now - lastCheckAt < 2000) {
+  if (!force && now - lastCheckAt < minAgeMs) {
+    return { pulled: false, throttled: true };
+  }
+  if (force && now - lastCheckAt < 3000) {
     return { pulled: false, throttled: true };
   }
   if (syncInFlight) return syncInFlight;
@@ -122,7 +125,7 @@ async function pushSnapshot(updatedBy = 'system') {
   } catch (_) {}
 
   const rawBuffer = fs.readFileSync(config.dbPath);
-  const gzBase64 = zlib.gzipSync(rawBuffer).toString('base64');
+  const gzBase64 = zlib.gzipSync(rawBuffer, { level: 1 }).toString('base64');
   const nextVersion = Math.max(localVersion + 1, Date.now());
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {

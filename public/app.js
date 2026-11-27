@@ -113,7 +113,18 @@ async function enterApp() {
 }
 
 async function loadAllData() {
-  await Promise.all([loadDashboardAndQueue(), loadNotifications()]);
+  await Promise.all([
+    loadDashboardAndQueue(),
+    loadNotifications(),
+    api('/api/campuses?limit=1')
+      .then((campusMeta) => {
+        if (campusMeta?.overallTotal !== undefined || campusMeta?.stats) {
+          const badge = document.getElementById('nav-unuploaded-badge');
+          if (badge) badge.textContent = campusMeta.overallTotal ?? campusMeta.stats.total;
+        }
+      })
+      .catch(() => null),
+  ]);
 }
 
 async function loadDashboardAndQueue() {
@@ -141,16 +152,10 @@ async function loadDashboardAndQueue() {
   if (fDateFrom) params.set('dateFrom', fDateFrom);
   if (fDateTo) params.set('dateTo', fDateTo);
 
-  const [summary, listData, campusMeta] = await Promise.all([
+  const [summary, listData] = await Promise.all([
     api(`/api/dashboard/summary?${params.toString()}`),
     api(`/api/students?${params.toString()}`),
-    api('/api/campuses?limit=1').catch(() => null),
   ]);
-
-  if (campusMeta?.stats) {
-    const badge = document.getElementById('nav-unuploaded-badge');
-    if (badge) badge.textContent = campusMeta.stats.total;
-  }
 
   state.filtersMeta = summary.filtersMeta;
   state.workflowConfig = summary.workflowConfig;
@@ -447,7 +452,7 @@ function renderStudentsTable(rows) {
           body: JSON.stringify({ studentIds: ids }),
         });
         showToast('↩ Call reverted to Pending');
-        await loadAllData();
+        await loadDashboardAndQueue();
       } catch (err) {
         showToast(err.message);
       } finally {
@@ -507,19 +512,23 @@ function openUnattendPopup({ studentIds = [], campusId = null, contactType = 'co
 
 async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coordinator', callSessionId = null) {
   try {
+    const results = await Promise.all(
+      studentIds.map((sid, idx) =>
+        api(`/api/students/${sid}/calls`, {
+          method: 'POST',
+          body: JSON.stringify({
+            callSessionId: idx === 0 ? callSessionId : null,
+            contactType,
+            callOutcome,
+            remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : `Unattended (${callOutcome})`,
+            isValidAttempt: true,
+          }),
+        })
+      )
+    );
     let emailSent = false;
     let emailSimulated = false;
-    for (const sid of studentIds) {
-      const res = await api(`/api/students/${sid}/calls`, {
-        method: 'POST',
-        body: JSON.stringify({
-          callSessionId: sid === studentIds[0] ? callSessionId : null,
-          contactType,
-          callOutcome,
-          remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : `Unattended (${callOutcome})`,
-          isValidAttempt: true,
-        }),
-      });
+    for (const res of results) {
       if (res.emailResult?.emailRecord?.delivery_status === 'SENT') {
         if (res.emailResult?.emailRecord?.last_error?.includes('SIMULATION_ONLY')) {
           emailSimulated = true;
@@ -537,7 +546,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
     } else {
       showToast(`Saved: ${callOutcome}`);
     }
-    await loadAllData();
+    await loadDashboardAndQueue();
     if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
       await openCallingDesk(state.activeStudentId);
     }

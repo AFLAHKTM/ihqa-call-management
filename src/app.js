@@ -10,6 +10,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const telephonyRoutes = require('./routes/telephonyRoutes');
 const campusRoutes = require('./routes/campusRoutes');
+const config = require('./config');
 const { pullIfNewer, pushSnapshot } = require('./services/cloudSyncService');
 
 function createApp() {
@@ -34,10 +35,16 @@ function createApp() {
       const origJson = res.json.bind(res);
       res.json = (body) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          pushSnapshot(req.user?.username || req.path)
-            .catch((err) => console.warn('Cloud sync push warning:', err.message))
-            .finally(() => origJson(body));
-          return res;
+          if (config.isVercel) {
+            pushSnapshot(req.user?.username || req.path)
+              .catch((err) => console.warn('Cloud sync push warning:', err.message))
+              .finally(() => origJson(body));
+            return res;
+          }
+          // On persistent local server, push asynchronously so UI responds in <10ms
+          pushSnapshot(req.user?.username || req.path).catch((err) =>
+            console.warn('Cloud sync push warning:', err.message)
+          );
         }
         return origJson(body);
       };
