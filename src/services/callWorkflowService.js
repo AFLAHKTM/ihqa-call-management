@@ -81,9 +81,13 @@ function listStudents(filters = {}, user = null, db = getDb()) {
     params.push(`%${filters.registrationNumber.trim()}%`);
   }
   if (filters.callStatus) {
-    // Support matching either overall communication_status or last_call_outcome
-    where.push('(s.communication_status = ? OR s.last_call_outcome = ?)');
-    params.push(filters.callStatus, filters.callStatus);
+    if (filters.callStatus === 'UNATTENDED') {
+      where.push("s.valid_attempt_count >= 1 AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+    } else {
+      // Support matching either overall communication_status or last_call_outcome
+      where.push('(s.communication_status = ? OR s.last_call_outcome = ?)');
+      params.push(filters.callStatus, filters.callStatus);
+    }
   }
   if (filters.attemptCount !== undefined && filters.attemptCount !== '' && filters.attemptCount !== null) {
     where.push('s.valid_attempt_count = ?');

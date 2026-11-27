@@ -42,8 +42,12 @@ router.get('/', (req, res) => {
     params.push(district);
   }
   if (status) {
-    where.push('c.communication_status = ?');
-    params.push(status);
+    if (status === 'UNATTENDED') {
+      where.push("c.valid_attempt_count >= 1 AND c.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+    } else {
+      where.push('c.communication_status = ?');
+      params.push(status);
+    }
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -88,7 +92,8 @@ router.get('/', (req, res) => {
         SUM(CASE WHEN communication_status IN ('Pending First Call', 'Pending Second Call', 'Pending Third Call') THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN communication_status IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS attended,
         SUM(CASE WHEN valid_attempt_count >= 1 AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS unattended,
-        SUM(CASE WHEN email_sent = 1 THEN 1 ELSE 0 END) AS emailSent
+        SUM(CASE WHEN email_sent = 1 THEN 1 ELSE 0 END) AS emailSent,
+        COALESCE(SUM(valid_attempt_count), 0) AS callsMade
        FROM unuploaded_campuses
        ${statsWhere}`
     )
@@ -106,6 +111,7 @@ router.get('/', (req, res) => {
       attended: statsRow.attended || 0,
       unattended: statsRow.unattended || 0,
       emailSent: statsRow.emailSent || 0,
+      callsMade: statsRow.callsMade || 0,
     },
   });
 });

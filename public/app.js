@@ -230,9 +230,11 @@ function populateFilterDropdowns(meta) {
 
 function renderKpis(stats) {
   const simpleCards = [
-    { label: 'Pending / To Call', value: stats.followupPending, cls: 'warn' },
-    { label: 'Contacted', value: stats.successfullyContacted, cls: 'success' },
-    { label: 'Callbacks', value: stats.callbacksRequested, cls: '' },
+    { label: 'Total Campuses', value: stats.totalStudentsAssigned, cls: '' },
+    { label: 'Pending Calls', value: stats.followupPending, cls: 'warn' },
+    { label: 'Attended', value: stats.successfullyContacted, cls: 'success' },
+    { label: 'Unattended', value: (stats.notReachable || 0) + (stats.noAnswer || 0), cls: 'warn' },
+    { label: 'Auto-Emailed', value: stats.emailNotificationsSent, cls: '' },
     { label: 'Calls Made', value: stats.totalCallsAttempted, cls: '' },
   ];
   const allCards = [
@@ -964,6 +966,7 @@ async function loadUnuploadedCampuses() {
     { label: 'Attended', value: data.stats.attended, cls: 'success' },
     { label: 'Unattended', value: data.stats.unattended, cls: 'warn' },
     { label: 'Auto-Emailed', value: data.stats.emailSent, cls: '' },
+    { label: 'Calls Made', value: data.stats.callsMade || 0, cls: '' },
   ]
     .map(
       (c) => `<div class="kpi-card ${c.cls}">
