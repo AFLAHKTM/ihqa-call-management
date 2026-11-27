@@ -124,10 +124,12 @@ function listStudents(filters = {}, user = null, db = getDb()) {
        ORDER BY
          CASE
            WHEN s.registration_number LIKE 'IHQA-TAF-%' THEN 0
-           ELSE 1
+           WHEN s.registration_number LIKE 'IHQA-QIR-%' THEN 1
+           ELSE 2
          END,
          CASE
-           WHEN s.registration_number LIKE 'IHQA-TAF-%' THEN CAST(SUBSTR(s.registration_number, 10) AS INTEGER)
+           WHEN s.registration_number LIKE 'IHQA-TAF-%' OR s.registration_number LIKE 'IHQA-QIR-%'
+             THEN CAST(SUBSTR(s.registration_number, 10) AS INTEGER)
            ELSE 999999
          END ASC,
          s.institution_name ASC,

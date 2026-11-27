@@ -346,7 +346,7 @@ function renderStudentsTable(rows) {
             <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
           </div>`;
 
-      const pdfMatch = String(primary.registration_number || '').match(/^IHQA-TAF-(\d+)$/);
+      const pdfMatch = String(primary.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
       const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
 
       return `<tr>
