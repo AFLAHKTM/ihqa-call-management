@@ -999,6 +999,20 @@ function renderUnuploadedCampuses(rows) {
             <button type="button" class="btn btn-sm row-unattend-btn u-unattend-btn" data-id="${c.id}" data-label="${escapeHtml(c.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
           </div>`;
 
+      const subBadgeClass =
+        c.submission_status === 'Winner Added'
+          ? 'badge-success'
+          : c.submission_status === 'Canceled Program'
+            ? 'badge-danger'
+            : 'badge-warn';
+
+      const subOptionsHtml = isAttended
+        ? `<div class="sub-status-actions">
+            <button type="button" class="u-sub-btn ${c.submission_status === 'Winner Added' ? 'active-win' : ''}" data-id="${c.id}" data-sub="Winner Added">✅ Winner Added</button>
+            <button type="button" class="u-sub-btn ${c.submission_status === 'Canceled Program' ? 'active-cancel' : ''}" data-id="${c.id}" data-sub="Canceled Program">🚫 Canceled Program</button>
+          </div>`
+        : '';
+
       return `<tr>
         <td data-label="#"><strong>${c.serial_no}</strong></td>
         <td data-label="Institution">
@@ -1016,7 +1030,8 @@ function renderUnuploadedCampuses(rows) {
           <span class="students-count">${c.enrolled_students} / ${c.winners_declared}</span>
         </td>
         <td data-label="Submission Status" class="center-col">
-          <span class="badge badge-warn">${escapeHtml(c.submission_status)}</span>
+          <span class="badge ${subBadgeClass}">${escapeHtml(c.submission_status)}</span>
+          ${subOptionsHtml}
         </td>
         <td data-label="Call Status & Action">
           <div style="margin-bottom:6px">
@@ -1060,6 +1075,26 @@ function renderUnuploadedCampuses(rows) {
       } finally {
         btn.disabled = false;
         btn.textContent = '↩ Undo';
+      }
+    });
+  });
+
+  document.querySelectorAll('.u-sub-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.id);
+      const nextSub = btn.dataset.sub;
+      btn.disabled = true;
+      try {
+        await api(`/api/campuses/${id}/submission-status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ submissionStatus: nextSub }),
+        });
+        showToast(`Updated: ${nextSub}`);
+        await loadUnuploadedCampuses();
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        btn.disabled = false;
       }
     });
   });

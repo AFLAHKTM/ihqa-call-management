@@ -304,4 +304,46 @@ router.post('/assign', requireRole(ROLES.ADMIN, ROLES.SUPERVISOR), (req, res) =>
   res.json({ ok: true, assignedCount: campusIds.length });
 });
 
+router.patch('/:id/submission-status', (req, res) => {
+  const db = getDb();
+  const campusId = Number(req.params.id);
+  const { submissionStatus } = req.body || {};
+  const allowed = new Set(['No Enrolled Students', 'Winner Added', 'Canceled Program']);
+
+  if (!allowed.has(submissionStatus)) {
+    return res.status(400).json({ error: 'Invalid submissionStatus' });
+  }
+
+  const campus = db.prepare('SELECT * FROM unuploaded_campuses WHERE id = ?').get(campusId);
+  if (!campus) {
+    return res.status(404).json({ error: 'Campus not found' });
+  }
+  if (req.user.role === ROLES.CALLING_STAFF && campus.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  db.prepare(
+    `UPDATE unuploaded_campuses
+     SET submission_status = ?,
+         winners_declared = CASE WHEN ? = 'Winner Added' THEN 1 ELSE 0 END,
+         updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(submissionStatus, submissionStatus, campusId);
+
+  logAudit(
+    {
+      user: req.user,
+      action: 'CAMPUS_SUBMISSION_STATUS_UPDATED',
+      entityType: 'unuploaded_campus',
+      entityId: campusId,
+      details: { submissionStatus },
+      ipAddress: req.ip,
+    },
+    db
+  );
+
+  const updated = db.prepare('SELECT * FROM unuploaded_campuses WHERE id = ?').get(campusId);
+  res.json({ ok: true, campus: updated });
+});
+
 module.exports = router;

@@ -291,6 +291,38 @@ body {
   background: #bbf7d0;
   text-decoration: underline;
 }
+.sub-status-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.u-sub-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.u-sub-btn:hover {
+  background: #f8fafc;
+  border-color: #98a2b3;
+}
+.u-sub-btn.active-win {
+  background: #ecfdf3;
+  color: #027a48;
+  border-color: #027a48;
+}
+.u-sub-btn.active-cancel {
+  background: #fef3f2;
+  color: #b42318;
+  border-color: #b42318;
+}
 
 .unattend-modal-card {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
