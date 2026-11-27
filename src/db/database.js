@@ -284,42 +284,11 @@ function initDatabase(customPath) {
       db.exec('COMMIT');
     }
 
-    // Ensure Kashif, Salman, and Suhail exist and split unassigned unuploaded campuses among them
-    const { hashPassword } = require('../utils/security');
-    const staffDefs = [
-      ['kashif', 'Kashif', 'kashif@ihqakerala.org'],
-      ['salman', 'Salman', 'salman@ihqakerala.org'],
-      ['suhail', 'Suhail', 'suhail@ihqakerala.org'],
-    ];
-    const staffIds = [];
-    for (const [uname, fname, email] of staffDefs) {
-      let row = db.prepare('SELECT id FROM users WHERE username = ?').get(uname);
-      if (!row) {
-        const info = db
-          .prepare(
-            `INSERT INTO users (username, password_hash, full_name, email, phone, role, daily_target)
-             VALUES (?, ?, ?, ?, '', 'CALLING_STAFF', 45)`
-          )
-          .run(uname, hashPassword('Staff@2026'), fname, email);
-        row = { id: Number(info.lastInsertRowid) };
-      }
-      staffIds.push(row.id);
-    }
-
-    const unassigned = db
-      .prepare('SELECT id FROM unuploaded_campuses WHERE assigned_staff_id IS NULL ORDER BY serial_no ASC')
-      .all();
-    if (unassigned.length > 0 && staffIds.length === 3) {
-      const chunk1 = Math.ceil(unassigned.length / 3); // 125
-      const chunk2 = Math.ceil((unassigned.length - chunk1) / 2); // 124
-      const assignStmt = db.prepare('UPDATE unuploaded_campuses SET assigned_staff_id = ? WHERE id = ?');
-      db.exec('BEGIN');
-      for (let i = 0; i < unassigned.length; i += 1) {
-        const targetStaff =
-          i < chunk1 ? staffIds[0] : i < chunk1 + chunk2 ? staffIds[1] : staffIds[2];
-        assignStmt.run(targetStaff, unassigned[i].id);
-      }
-      db.exec('COMMIT');
+    // Only ensure Kashif/Salman/Suhail & split here if admin already exists (existing DB).
+    // On a fresh DB, seedDatabase() will create all 8 users and then call ensureStaffAndSplitUnuploaded(db).
+    const hasAdmin = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE username = 'admin'").get().cnt > 0;
+    if (hasAdmin) {
+      ensureStaffAndSplitUnuploaded(db);
     }
   } catch (err) {
     try { db.exec('ROLLBACK'); } catch (_) {}
@@ -328,6 +297,45 @@ function initDatabase(customPath) {
 
   dbInstance = db;
   return db;
+}
+
+function ensureStaffAndSplitUnuploaded(db) {
+  const { hashPassword } = require('../utils/security');
+  const staffDefs = [
+    ['kashif', 'Kashif', 'kashif@ihqakerala.org'],
+    ['salman', 'Salman', 'salman@ihqakerala.org'],
+    ['suhail', 'Suhail', 'suhail@ihqakerala.org'],
+  ];
+  const staffIds = [];
+  for (const [uname, fname, email] of staffDefs) {
+    let row = db.prepare('SELECT id FROM users WHERE username = ?').get(uname);
+    if (!row) {
+      const info = db
+        .prepare(
+          `INSERT INTO users (username, password_hash, full_name, email, phone, role, daily_target)
+           VALUES (?, ?, ?, ?, '', 'CALLING_STAFF', 45)`
+        )
+        .run(uname, hashPassword('Staff@2026'), fname, email);
+      row = { id: Number(info.lastInsertRowid) };
+    }
+    staffIds.push(row.id);
+  }
+
+  const unassigned = db
+    .prepare('SELECT id FROM unuploaded_campuses WHERE assigned_staff_id IS NULL ORDER BY serial_no ASC')
+    .all();
+  if (unassigned.length > 0 && staffIds.length === 3) {
+    const chunk1 = Math.ceil(unassigned.length / 3); // 125
+    const chunk2 = Math.ceil((unassigned.length - chunk1) / 2); // 124
+    const assignStmt = db.prepare('UPDATE unuploaded_campuses SET assigned_staff_id = ? WHERE id = ?');
+    db.exec('BEGIN');
+    for (let i = 0; i < unassigned.length; i += 1) {
+      const targetStaff =
+        i < chunk1 ? staffIds[0] : i < chunk1 + chunk2 ? staffIds[1] : staffIds[2];
+      assignStmt.run(targetStaff, unassigned[i].id);
+    }
+    db.exec('COMMIT');
+  }
 }
 
 function getDb() {
@@ -375,6 +383,7 @@ function getSettingsMap(db = getDb()) {
 
 module.exports = {
   initDatabase,
+  ensureStaffAndSplitUnuploaded,
   getDb,
   setDb,
   closeDb,

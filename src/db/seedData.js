@@ -1,4 +1,4 @@
-const { getDb, withTransaction } = require('./database');
+const { getDb, withTransaction, ensureStaffAndSplitUnuploaded } = require('./database');
 const { hashPassword } = require('../utils/security');
 const { isValidEmail } = require('../utils/security');
 const { RECITATION_RECORDS, TAFSIR_RECORDS } = require('./pdfDataset');
@@ -13,12 +13,12 @@ function shuffleArray(arr) {
 }
 
 function seedDatabase(db = getDb(), { force = false } = {}) {
-  const existingUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  if (existingUsers > 0 && !force) {
+  const existingAdmin = db.prepare("SELECT COUNT(*) as c FROM users WHERE username = 'admin'").get().c;
+  if (existingAdmin > 0 && !force) {
     return { seeded: false, reason: 'Database already populated' };
   }
 
-  return withTransaction(db, () => {
+  const result = withTransaction(db, () => {
     if (force) {
       db.exec(`
         DELETE FROM audit_logs;
@@ -151,6 +151,9 @@ function seedDatabase(db = getDb(), { force = false } = {}) {
       calls: 0,
     };
   });
+
+  ensureStaffAndSplitUnuploaded(db);
+  return result;
 }
 
 module.exports = {
