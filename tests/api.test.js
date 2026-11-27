@@ -1,3 +1,4 @@
+process.env.DISABLE_CLOUD_SYNC = 'true';
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');

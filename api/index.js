@@ -1,21 +1,29 @@
 const { initDatabase } = require('../src/db/database');
 const { seedDatabase } = require('../src/db/seedData');
+const { initCloudSync } = require('../src/services/cloudSyncService');
 const { createApp } = require('../src/app');
 
 let app = null;
+let initPromise = null;
 
-function ensureApp() {
+async function ensureApp() {
   if (!app) {
-    const db = initDatabase();
-    seedDatabase(db);
-    app = createApp();
+    if (!initPromise) {
+      initPromise = (async () => {
+        const db = initDatabase();
+        seedDatabase(db);
+        await initCloudSync();
+        app = createApp();
+      })();
+    }
+    await initPromise;
   }
   return app;
 }
 
-module.exports = (req, res) => {
+module.exports = async (req, res) => {
   try {
-    const handler = ensureApp();
+    const handler = await ensureApp();
     return handler(req, res);
   } catch (err) {
     console.error('Serverless invocation error:', err);

@@ -10,6 +10,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const telephonyRoutes = require('./routes/telephonyRoutes');
 const campusRoutes = require('./routes/campusRoutes');
+const { pullIfNewer, pushSnapshot } = require('./services/cloudSyncService');
 
 function createApp() {
   const app = express();
@@ -17,9 +18,31 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
 
-  // Prevent caching of sensitive API responses
-  app.use('/api', (req, res, next) => {
+  // Prevent caching of sensitive API responses & sync shared cloud database
+  app.use('/api', async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
+    if (req.path === '/health') return next();
+
+    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+    try {
+      await pullIfNewer(isMutation);
+    } catch (err) {
+      console.warn('Cloud sync pull warning:', err.message);
+    }
+
+    if (isMutation) {
+      const origJson = res.json.bind(res);
+      res.json = (body) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          pushSnapshot(req.user?.username || req.path)
+            .catch((err) => console.warn('Cloud sync push warning:', err.message))
+            .finally(() => origJson(body));
+          return res;
+        }
+        return origJson(body);
+      };
+    }
+
     next();
   });
 
