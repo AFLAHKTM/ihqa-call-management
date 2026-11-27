@@ -39,6 +39,29 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function buildWhatsAppUrl(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const waNum = digits.length === 10 ? `91${digits}` : digits;
+  const msg = `Dear Usthad/Institution Supervisor,
+
+We tried contacting you regarding your institution’s participation in District Level for India Holy Quran Award 2026–27 but could not reach you.
+
+Kerala State Competition Dates: November 30 – December 3, 2026.
+
+Kindly contact us at the earliest to complete the pending formalities.
+
+Whatsapp: +91 94004 56562
+Call: 8086666144
+Email: info@indiaquranaward.com
+
+Thank you for your cooperation.
+
+India Holy Quran Award 2026–27
+Award Coordination Team`;
+  return `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`;
+}
+
 function showToast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -333,7 +356,7 @@ function renderStudentsTable(rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(g.coordinator_name || primary.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(primaryPhone)}</a>` : '<span class="muted">No phone</span>'}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(primaryPhone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
             ${g.coordinator_email ? `<span class="sup-email"> · ${escapeHtml(g.coordinator_email)}</span>` : ''}
           </div>
         </td>
@@ -985,7 +1008,7 @@ function renderUnuploadedCampuses(rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(c.supervisor_name || '-')}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(c.supervisor_phone)}</a>` : '<span class="muted">No phone</span>'}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(c.supervisor_phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
             ${c.supervisor_email ? `<span class="sup-email"> · ${escapeHtml(c.supervisor_email)}</span>` : ''}
           </div>
         </td>
