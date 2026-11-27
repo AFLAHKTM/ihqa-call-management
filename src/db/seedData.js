@@ -42,6 +42,9 @@ function seedDatabase(db = getDb(), { force = false } = {}) {
       ['saeed_adany', hashPassword('Staff@2026'), 'Saeed Adany', 'saeed.adany@ihqakerala.org', '', 'CALLING_STAFF', 40],
       ['shahid_adany', hashPassword('Staff@2026'), 'Shahid Abdullah Adany', 'shahid.adany@ihqakerala.org', '', 'CALLING_STAFF', 40],
       ['usman_adany', hashPassword('Staff@2026'), 'Usman Adany', 'usman.adany@ihqakerala.org', '', 'CALLING_STAFF', 40],
+      ['kashif', hashPassword('Staff@2026'), 'Kashif', 'kashif@ihqakerala.org', '', 'CALLING_STAFF', 45],
+      ['salman', hashPassword('Staff@2026'), 'Salman', 'salman@ihqakerala.org', '', 'CALLING_STAFF', 45],
+      ['suhail', hashPassword('Staff@2026'), 'Suhail', 'suhail@ihqakerala.org', '', 'CALLING_STAFF', 45],
     ];
 
     const userIds = {};

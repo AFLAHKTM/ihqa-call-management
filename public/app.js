@@ -879,11 +879,13 @@ function switchView(viewName) {
 async function loadUnuploadedCampuses() {
   const search = document.getElementById('u-filter-search')?.value.trim() || '';
   const district = document.getElementById('u-filter-district')?.value || '';
+  const staffId = document.getElementById('u-filter-staff')?.value || '';
   const status = document.getElementById('u-filter-status')?.value || '';
 
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (district) params.set('district', district);
+  if (staffId) params.set('staffId', staffId);
   if (status) params.set('status', status);
 
   const data = await api(`/api/campuses?${params.toString()}`);
@@ -895,6 +897,33 @@ async function loadUnuploadedCampuses() {
       .map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
       .join('')}`;
     distSel.value = prev;
+  }
+
+  const staffSel = document.getElementById('u-filter-staff');
+  if (staffSel && data.staffList) {
+    const prevStaff = staffSel.value;
+    staffSel.innerHTML = `<option value="">All Assigned Staff</option>${data.staffList
+      .map((s) => `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`)
+      .join('')}`;
+    staffSel.value = prevStaff;
+  }
+
+  const pillsEl = document.getElementById('unuploaded-staff-pills');
+  if (pillsEl && data.staffBreakdown) {
+    const pills = [
+      `<button type="button" class="pill-filter ${!staffId ? 'active' : ''}" data-staff-id="">All (${data.stats.total})</button>`,
+      ...data.staffBreakdown.map(
+        (s) =>
+          `<button type="button" class="pill-filter ${String(staffId) === String(s.id) ? 'active' : ''}" data-staff-id="${s.id}">${escapeHtml(s.full_name)} (${s.count})</button>`
+      ),
+    ];
+    pillsEl.innerHTML = pills.join('');
+    pillsEl.querySelectorAll('.pill-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (staffSel) staffSel.value = btn.dataset.staffId || '';
+        loadUnuploadedCampuses();
+      });
+    });
   }
 
   document.getElementById('nav-unuploaded-badge').textContent = data.stats.total;
@@ -967,6 +996,7 @@ function renderUnuploadedCampuses(rows) {
           <div style="margin-bottom:6px">
             <span class="badge ${statusBadgeClass(c.communication_status)}">${escapeHtml(c.communication_status)}</span>
             <span class="badge badge-neutral">${c.valid_attempt_count}/3</span>
+            <div class="muted small" style="margin-top:2px">${escapeHtml(c.assigned_staff_name || 'Unassigned')}</div>
           </div>
           ${actionHtml}
         </td>
@@ -1317,6 +1347,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchTimer = setTimeout(loadUnuploadedCampuses, 260);
   });
   document.getElementById('u-filter-district')?.addEventListener('change', loadUnuploadedCampuses);
+  document.getElementById('u-filter-staff')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-status')?.addEventListener('change', loadUnuploadedCampuses);
 
   document.querySelectorAll('.chip').forEach((chip) => {

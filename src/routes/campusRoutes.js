@@ -13,10 +13,22 @@ const SUCCESS_OUTCOMES = new Set(['Successfully Contacted', 'Follow-up Completed
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const { search = '', district = '', status = '', limit = 500, offset = 0 } = req.query;
+  const { search = '', district = '', status = '', staffId = '', limit = 500, offset = 0 } = req.query;
 
   const where = [];
   const params = [];
+
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    where.push('c.assigned_staff_id = ?');
+    params.push(req.user.id);
+  } else if (staffId) {
+    if (staffId === 'unassigned') {
+      where.push('c.assigned_staff_id IS NULL');
+    } else {
+      where.push('c.assigned_staff_id = ?');
+      params.push(Number(staffId));
+    }
+  }
 
   if (search) {
     const q = `%${search.trim()}%`;
@@ -53,6 +65,22 @@ router.get('/', (req, res) => {
     .all()
     .map((r) => r.district);
 
+  const staffList = db
+    .prepare("SELECT id, username, full_name FROM users WHERE role = 'CALLING_STAFF' AND is_active = 1 ORDER BY id ASC")
+    .all();
+
+  const staffBreakdown = db
+    .prepare(
+      `SELECT u.id, u.full_name, COUNT(c.id) AS count
+       FROM unuploaded_campuses c
+       JOIN users u ON u.id = c.assigned_staff_id
+       GROUP BY u.id, u.full_name
+       ORDER BY u.id ASC`
+    )
+    .all();
+
+  const statsWhere = req.user.role === ROLES.CALLING_STAFF ? 'WHERE assigned_staff_id = ?' : '';
+  const statsParams = req.user.role === ROLES.CALLING_STAFF ? [req.user.id] : [];
   const statsRow = db
     .prepare(
       `SELECT
@@ -61,14 +89,17 @@ router.get('/', (req, res) => {
         SUM(CASE WHEN communication_status IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS attended,
         SUM(CASE WHEN valid_attempt_count >= 1 AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS unattended,
         SUM(CASE WHEN email_sent = 1 THEN 1 ELSE 0 END) AS emailSent
-       FROM unuploaded_campuses`
+       FROM unuploaded_campuses
+       ${statsWhere}`
     )
-    .get();
+    .get(...statsParams);
 
   res.json({
     rows,
     total,
     districts,
+    staffList,
+    staffBreakdown,
     stats: {
       total: statsRow.total || 0,
       pending: statsRow.pending || 0,
