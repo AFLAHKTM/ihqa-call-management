@@ -1403,9 +1403,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  let uSearchTimer = null;
   document.getElementById('u-filter-search')?.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(loadUnuploadedCampuses, 260);
+    clearTimeout(uSearchTimer);
+    uSearchTimer = setTimeout(loadUnuploadedCampuses, 260);
   });
   document.getElementById('u-filter-district')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-staff')?.addEventListener('change', loadUnuploadedCampuses);
