@@ -168,6 +168,28 @@ async function loadDashboardAndQueue() {
     document.getElementById('cnt-tafseer').textContent = summary.sectionCounts.tafseer;
   }
   populateFilterDropdowns(summary.filtersMeta);
+
+  const dashStaffPills = document.getElementById('dashboard-staff-pills');
+  if (dashStaffPills && summary.staffBreakdown && summary.staffBreakdown.length > 0) {
+    const activeStaffId = document.getElementById('f-staff')?.value || '';
+    const allTotal = summary.overallTotal ?? summary.stats.totalStudentsAssigned;
+    const pills = [
+      `<button type="button" class="pill-filter ${!activeStaffId ? 'active' : ''}" data-dash-staff="">All (${allTotal})</button>`,
+      ...summary.staffBreakdown.map(
+        (s) =>
+          `<button type="button" class="pill-filter ${String(activeStaffId) === String(s.id) ? 'active' : ''}" data-dash-staff="${s.id}">${escapeHtml(s.full_name)} (${s.count})</button>`
+      ),
+    ];
+    dashStaffPills.innerHTML = pills.join('');
+    dashStaffPills.querySelectorAll('.pill-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const fStaffSel = document.getElementById('f-staff');
+        if (fStaffSel) fStaffSel.value = btn.dataset.dashStaff || '';
+        loadDashboardAndQueue();
+      });
+    });
+  }
+
   renderKpis(summary.stats);
   renderStudentsTable(listData.rows);
 }

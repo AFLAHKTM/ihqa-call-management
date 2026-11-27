@@ -45,9 +45,30 @@ router.get('/summary', (req, res) => {
     if (row.exam_category === 'Complete Memorization of the Holy Quran with Tafsir') sectionCounts.tafseer = row.c;
   }
 
+  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3 };
+  const staffBreakdown =
+    req.user.role === 'CALLING_STAFF'
+      ? []
+      : db
+          .prepare(
+            `SELECT u.id, u.username, u.full_name, COUNT(s.id) AS count
+             FROM students s
+             JOIN users u ON u.id = s.assigned_staff_id
+             GROUP BY u.id, u.username, u.full_name`
+          )
+          .all()
+          .sort((a, b) => (orderRank[a.username] || 99) - (orderRank[b.username] || 99));
+
+  const overallTotal =
+    req.user.role === 'CALLING_STAFF'
+      ? sectionCounts.all
+      : db.prepare('SELECT COUNT(*) AS c FROM students').get().c;
+
   res.json({
     stats,
     sectionCounts,
+    staffBreakdown,
+    overallTotal,
     filtersMeta: {
       districts: districts.length ? districts : KERALA_DISTRICTS,
       institutions,
