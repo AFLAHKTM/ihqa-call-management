@@ -109,6 +109,7 @@ async function enterApp() {
   if (greetingEl) {
     const greetName = state.user.role === 'ADMIN' ? 'Admin' : state.user.full_name;
     greetingEl.textContent = `👋 Hey ${greetName}`;
+    greetingEl.classList.remove('hidden');
   }
   applyRoleVisibility();
   await loadAllData();

@@ -502,7 +502,7 @@ input:focus, select:focus, textarea:focus {
   gap: 12px;
 }
 .topbar h2 { margin: 0; font-size: 18px; color: var(--emerald-900); }
-.topbar p { margin: 2px 0 0; font-size: 15px; font-weight: 500; color: var(--emerald-600, #059669); }
+.topbar p { margin: 2px 0 0; font-size: 12px; }
 .topbar-actions { display: flex; gap: 8px; }
 
 .view-section { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
@@ -754,15 +754,26 @@ input:focus, select:focus, textarea:focus {
 }
 
 .topbar-left { display: flex; align-items: center; gap: 10px; }
-.topbar-greeting {
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--emerald-900);
-  background: #ecfdf3;
-  border: 1px solid #a6f4c5;
-  padding: 5px 11px;
-  border-radius: 999px;
-  white-space: nowrap;
+.greeting-banner {
+  margin: 14px 24px 0;
+  padding: 12px 18px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #065f46;
+  background: linear-gradient(135deg, #ecfdf3 0%, #d1fae5 100%);
+  border: 1.5px solid #6ee7b7;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.2px;
+}
+@media (max-width: 1120px) {
+  .greeting-banner {
+    margin: 12px 12px 0;
+    padding: 10px 14px;
+    font-size: 18px;
+  }
 }
 .mobile-only-btn { display: none; }
 .row-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
