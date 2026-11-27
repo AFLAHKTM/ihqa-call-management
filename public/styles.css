@@ -502,7 +502,7 @@ input:focus, select:focus, textarea:focus {
   gap: 12px;
 }
 .topbar h2 { margin: 0; font-size: 18px; color: var(--emerald-900); }
-.topbar p { margin: 2px 0 0; font-size: 12px; }
+.topbar p { margin: 2px 0 0; font-size: 15px; font-weight: 500; color: var(--emerald-600, #059669); }
 .topbar-actions { display: flex; gap: 8px; }
 
 .view-section { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
