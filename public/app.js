@@ -1170,12 +1170,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('logout-btn').addEventListener('click', async () => {
+  const doLogout = async () => {
     await api('/api/auth/logout', { method: 'POST' });
     state.user = null;
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
-  });
+  };
+  document.getElementById('logout-btn').addEventListener('click', doLogout);
+  document.getElementById('topbar-logout-btn')?.addEventListener('click', doLogout);
 
   document.querySelectorAll('.nav-item').forEach((item) => {
     item.addEventListener('click', () => {
