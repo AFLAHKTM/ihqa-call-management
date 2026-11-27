@@ -349,7 +349,7 @@ function renderStudentsTable(rows) {
         <td data-label="Call Status & Action">
           <div style="margin-bottom:6px">
             <span class="badge ${statusBadgeClass(primary.communication_status)}">${escapeHtml(primary.communication_status)}</span>
-            <span class="badge badge-neutral">${primary.valid_attempt_count}/3</span>
+            <span class="badge badge-neutral">${primary.valid_attempt_count}/${state.workflowConfig?.maxAttempts || 2}</span>
             <div class="muted small" style="margin-top:2px">${escapeHtml(staffNames)}</div>
             ${primary.next_followup_at ? `<div class="small ${isOverdue ? 'badge badge-danger' : 'muted'}">Follow-up: ${escapeHtml(primary.next_followup_at)}</div>` : ''}
           </div>
@@ -998,7 +998,7 @@ function renderUnuploadedCampuses(rows) {
         <td data-label="Call Status & Action">
           <div style="margin-bottom:6px">
             <span class="badge ${statusBadgeClass(c.communication_status)}">${escapeHtml(c.communication_status)}</span>
-            <span class="badge badge-neutral">${c.valid_attempt_count}/3</span>
+            <span class="badge badge-neutral">${c.valid_attempt_count}/${state.workflowConfig?.maxAttempts || 2}</span>
             <div class="muted small" style="margin-top:2px">${escapeHtml(c.assigned_staff_name || 'Unassigned')}</div>
           </div>
           ${actionHtml}

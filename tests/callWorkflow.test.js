@@ -70,6 +70,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('executes 3-attempt rule and sends personalized email once without duplicates', async () => {
+    db.prepare("UPDATE system_settings SET value = '3' WHERE key = 'max_attempts'").run();
     db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     const sid = createTestStudent({ reg: 'TEST-REG-002', email: 'ali.family@example.org' });
 
@@ -98,6 +99,7 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
   });
 
   it('sends 3-attempt automail from info@indiaquranaward.com to mail of institution', async () => {
+    db.prepare("UPDATE system_settings SET value = '3' WHERE key = 'max_attempts'").run();
     db.prepare("UPDATE system_settings SET value = 'false' WHERE key = 'auto_email_on_unattended'").run();
     const instInfo = db
       .prepare(
@@ -297,5 +299,20 @@ describe('Three-Attempt Workflow, Email Notification & Follow-Up Rules', () => {
     // Call history for the student should have 0 valid attempts
     const attempts = db.prepare('SELECT * FROM call_attempts WHERE student_id = ?').all(sid);
     assert.equal(attempts.length, 0);
+  });
+
+  it('sends official email automatically after 2 unattended attempts by default', async () => {
+    const sid = createTestStudent({ reg: 'TEST-2ATT-001', email: 'two.unattend@example.org' });
+    const r1 = await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'No Answer' }, db);
+    assert.equal(r1.student.valid_attempt_count, 1);
+    assert.equal(r1.student.communication_status, 'Pending Second Call');
+    assert.equal(sentMessages.length, 0);
+
+    const r2 = await logCallAttempt({ studentId: sid, staffUser, callOutcome: 'Switched Off' }, db);
+    assert.equal(r2.student.valid_attempt_count, 2);
+    assert.equal(r2.student.communication_status, 'Email Notification Sent');
+    assert.equal(sentMessages.length, 1);
+    assert.equal(sentMessages[0].from, 'India Holy Quran Award <info@indiaquranaward.com>');
+    assert.equal(sentMessages[0].to, 'two.unattend@example.org');
   });
 });

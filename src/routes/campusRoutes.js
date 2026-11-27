@@ -125,7 +125,7 @@ router.post('/:id/calls', async (req, res) => {
   }
 
   const settings = getSettingsMap(db);
-  const maxAttempts = Number(settings.max_attempts || 3);
+  const maxAttempts = Number(settings.max_attempts || 2);
 
   const updated = withTransaction(db, () => {
     const newAttemptCount = campus.valid_attempt_count + 1;
@@ -139,7 +139,7 @@ router.post('/:id/calls', async (req, res) => {
     if (SUCCESS_OUTCOMES.has(callOutcome)) {
       newStatus = 'Successfully Contacted';
     } else if (newAttemptCount >= maxAttempts) {
-      newStatus = 'Attempt 3 Completed';
+      newStatus = maxAttempts === 2 ? 'Attempt 2 Completed' : 'Attempt 3 Completed';
     } else if (newAttemptCount === 1) {
       newStatus = 'Pending Second Call';
     } else if (newAttemptCount === 2) {
