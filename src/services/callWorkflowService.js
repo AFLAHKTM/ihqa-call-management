@@ -123,10 +123,13 @@ function listStudents(filters = {}, user = null, db = getDb()) {
        ${whereClause}
        ORDER BY
          CASE
-           WHEN s.communication_status IN ('Callback Scheduled', 'Pending Third Call', 'Pending Second Call', 'Pending First Call') THEN 0
-           WHEN s.communication_status IN ('Attempt 1 Completed', 'Attempt 2 Completed', 'Attempt 3 Completed', 'Number Correction Required') THEN 1
-           ELSE 2
+           WHEN s.registration_number LIKE 'IHQA-TAF-%' THEN 0
+           ELSE 1
          END,
+         CASE
+           WHEN s.registration_number LIKE 'IHQA-TAF-%' THEN CAST(SUBSTR(s.registration_number, 10) AS INTEGER)
+           ELSE 999999
+         END ASC,
          s.institution_name ASC,
          s.id ASC
        LIMIT ? OFFSET ?`

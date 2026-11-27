@@ -346,9 +346,12 @@ function renderStudentsTable(rows) {
             <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
           </div>`;
 
+      const pdfMatch = String(primary.registration_number || '').match(/^IHQA-TAF-(\d+)$/);
+      const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
+
       return `<tr>
         ${isSupOrAdmin ? `<td data-label="Select"><input type="checkbox" class="row-chk" data-ids="${allIds.join(',')}" ${checked} /></td>` : ''}
-        <td data-label="#"><strong>${idx + 1}</strong></td>
+        <td data-label="#"><strong>${displayNo}</strong></td>
         <td data-label="Institution">
           <div class="inst-title">${escapeHtml(g.institution_name)}</div>
           <div class="inst-loc">${escapeHtml(locationLine)}</div>
