@@ -941,8 +941,9 @@ async function loadUnuploadedCampuses() {
 
   const pillsEl = document.getElementById('unuploaded-staff-pills');
   if (pillsEl && data.staffBreakdown) {
+    const allCount = data.overallTotal ?? data.stats.total;
     const pills = [
-      `<button type="button" class="pill-filter ${!staffId ? 'active' : ''}" data-staff-id="">All (${data.stats.total})</button>`,
+      `<button type="button" class="pill-filter ${!staffId ? 'active' : ''}" data-staff-id="">All (${allCount})</button>`,
       ...data.staffBreakdown.map(
         (s) =>
           `<button type="button" class="pill-filter ${String(staffId) === String(s.id) ? 'active' : ''}" data-staff-id="${s.id}">${escapeHtml(s.full_name)} (${s.count})</button>`
@@ -957,7 +958,7 @@ async function loadUnuploadedCampuses() {
     });
   }
 
-  document.getElementById('nav-unuploaded-badge').textContent = data.stats.total;
+  document.getElementById('nav-unuploaded-badge').textContent = data.overallTotal ?? data.stats.total;
   document.getElementById('unuploaded-total-label').textContent = `${data.total} campuses`;
 
   const kpiHtml = [

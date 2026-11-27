@@ -83,8 +83,25 @@ router.get('/', (req, res) => {
     )
     .all();
 
-  const statsWhere = req.user.role === ROLES.CALLING_STAFF ? 'WHERE assigned_staff_id = ?' : '';
-  const statsParams = req.user.role === ROLES.CALLING_STAFF ? [req.user.id] : [];
+  let statsWhere = '';
+  const statsParams = [];
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    statsWhere = 'WHERE assigned_staff_id = ?';
+    statsParams.push(req.user.id);
+  } else if (staffId) {
+    if (staffId === 'unassigned') {
+      statsWhere = 'WHERE assigned_staff_id IS NULL';
+    } else {
+      statsWhere = 'WHERE assigned_staff_id = ?';
+      statsParams.push(Number(staffId));
+    }
+  }
+
+  const overallTotal =
+    req.user.role === ROLES.CALLING_STAFF
+      ? db.prepare('SELECT COUNT(*) AS cnt FROM unuploaded_campuses WHERE assigned_staff_id = ?').get(req.user.id).cnt
+      : db.prepare('SELECT COUNT(*) AS cnt FROM unuploaded_campuses').get().cnt;
+
   const statsRow = db
     .prepare(
       `SELECT
@@ -102,6 +119,7 @@ router.get('/', (req, res) => {
   res.json({
     rows,
     total,
+    overallTotal,
     districts,
     staffList,
     staffBreakdown,
