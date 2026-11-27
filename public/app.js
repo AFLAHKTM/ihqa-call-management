@@ -971,6 +971,7 @@ async function loadUnuploadedCampuses() {
     .join('');
   document.getElementById('unuploaded-kpi-grid').innerHTML = kpiHtml;
 
+  state.unuploadedCampuses = data.rows || [];
   renderUnuploadedCampuses(data.rows);
 }
 
@@ -1023,6 +1024,7 @@ function renderUnuploadedCampuses(rows) {
           <div class="sup-name">${escapeHtml(c.supervisor_name || '-')}</div>
           <div class="sup-contact">
             ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(c.supervisor_phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            <button type="button" class="sup-edit-btn u-edit-btn" data-id="${c.id}" title="Edit institution or contact details">✏️ Edit</button>
             ${c.supervisor_email ? `<span class="sup-email"> · ${escapeHtml(c.supervisor_email)}</span>` : ''}
           </div>
         </td>
@@ -1096,6 +1098,22 @@ function renderUnuploadedCampuses(rows) {
       } finally {
         btn.disabled = false;
       }
+    });
+  });
+
+  document.querySelectorAll('.u-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.id);
+      const campus = (state.unuploadedCampuses || []).find((x) => x.id === id);
+      if (!campus) return;
+      document.getElementById('ec-id').value = campus.id;
+      document.getElementById('ec-institution').value = campus.institution_name || '';
+      document.getElementById('ec-place').value = campus.place || '';
+      document.getElementById('ec-district').value = campus.district || '';
+      document.getElementById('ec-supervisor').value = campus.supervisor_name || '';
+      document.getElementById('ec-phone').value = campus.supervisor_phone || '';
+      document.getElementById('ec-email').value = campus.supervisor_email || '';
+      document.getElementById('edit-campus-modal').classList.remove('hidden');
     });
   });
 }
@@ -1411,6 +1429,36 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('u-filter-district')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-staff')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-status')?.addEventListener('change', loadUnuploadedCampuses);
+
+  const editCampusModal = document.getElementById('edit-campus-modal');
+  document.getElementById('close-edit-campus-modal')?.addEventListener('click', () => {
+    editCampusModal.classList.add('hidden');
+  });
+  editCampusModal?.addEventListener('click', (e) => {
+    if (e.target === editCampusModal) editCampusModal.classList.add('hidden');
+  });
+  document.getElementById('edit-campus-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('ec-id').value;
+    try {
+      await api(`/api/campuses/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          institution_name: document.getElementById('ec-institution').value,
+          place: document.getElementById('ec-place').value,
+          district: document.getElementById('ec-district').value,
+          supervisor_name: document.getElementById('ec-supervisor').value,
+          supervisor_phone: document.getElementById('ec-phone').value,
+          supervisor_email: document.getElementById('ec-email').value,
+        }),
+      });
+      editCampusModal.classList.add('hidden');
+      showToast('✅ Campus details updated');
+      await loadUnuploadedCampuses();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
 
   document.querySelectorAll('.chip').forEach((chip) => {
     chip.addEventListener('click', () => {

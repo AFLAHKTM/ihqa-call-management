@@ -346,4 +346,63 @@ router.patch('/:id/submission-status', (req, res) => {
   res.json({ ok: true, campus: updated });
 });
 
+router.patch('/:id', (req, res) => {
+  const db = getDb();
+  const campusId = Number(req.params.id);
+  const campus = db.prepare('SELECT * FROM unuploaded_campuses WHERE id = ?').get(campusId);
+  if (!campus) {
+    return res.status(404).json({ error: 'Campus not found' });
+  }
+  if (req.user.role === ROLES.CALLING_STAFF && campus.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const {
+    institution_name,
+    place,
+    district,
+    supervisor_name,
+    supervisor_phone,
+    supervisor_email,
+  } = req.body || {};
+
+  const nextInst = institution_name !== undefined ? String(institution_name).trim() : campus.institution_name;
+  const nextPlace = place !== undefined ? String(place).trim() : campus.place;
+  const nextDistrict = district !== undefined ? String(district).trim() : campus.district;
+  const nextSupName = supervisor_name !== undefined ? String(supervisor_name).trim() : campus.supervisor_name;
+  const nextSupPhone = supervisor_phone !== undefined ? String(supervisor_phone).trim() : campus.supervisor_phone;
+  const nextSupEmail = supervisor_email !== undefined ? String(supervisor_email).trim() : campus.supervisor_email;
+
+  if (!nextInst || !nextDistrict) {
+    return res.status(400).json({ error: 'Institution Name and District are required' });
+  }
+
+  db.prepare(
+    `UPDATE unuploaded_campuses
+     SET institution_name = ?,
+         place = ?,
+         district = ?,
+         supervisor_name = ?,
+         supervisor_phone = ?,
+         supervisor_email = ?,
+         updated_at = datetime('now')
+     WHERE id = ?`
+  ).run(nextInst, nextPlace, nextDistrict, nextSupName, nextSupPhone, nextSupEmail, campusId);
+
+  logAudit(
+    {
+      user: req.user,
+      action: 'CAMPUS_DETAILS_UPDATED',
+      entityType: 'unuploaded_campus',
+      entityId: campusId,
+      details: { nextInst, nextPlace, nextDistrict, nextSupName, nextSupPhone, nextSupEmail },
+      ipAddress: req.ip,
+    },
+    db
+  );
+
+  const updated = db.prepare('SELECT * FROM unuploaded_campuses WHERE id = ?').get(campusId);
+  res.json({ ok: true, campus: updated });
+});
+
 module.exports = router;

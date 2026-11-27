@@ -786,6 +786,42 @@
     </div>
   </div>
 
+  <!-- MODAL: Edit Unuploaded Campus Details -->
+  <div id="edit-campus-modal" class="modal hidden">
+    <div class="modal-card" style="max-width:480px">
+      <div class="modal-header">
+        <h3 style="margin:0;font-size:16px;color:#101828">✏️ Edit Campus &amp; Contact Details</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="close-edit-campus-modal">✕ Cancel</button>
+      </div>
+      <form id="edit-campus-form" class="call-form">
+        <input type="hidden" id="ec-id" />
+        <label>Institution Name
+          <input type="text" id="ec-institution" required />
+        </label>
+        <div class="form-row">
+          <label>Place
+            <input type="text" id="ec-place" />
+          </label>
+          <label>District
+            <input type="text" id="ec-district" required />
+          </label>
+        </div>
+        <label>Supervisor Name
+          <input type="text" id="ec-supervisor" />
+        </label>
+        <div class="form-row">
+          <label>Supervisor Phone
+            <input type="text" id="ec-phone" />
+          </label>
+          <label>Supervisor Email
+            <input type="email" id="ec-email" />
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg">💾 Save Changes</button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <script src="/app.js"></script>
 </body>
