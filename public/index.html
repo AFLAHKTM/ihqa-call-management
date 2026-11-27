@@ -58,6 +58,10 @@
         <button class="nav-item active" data-view="dashboard">
           <span>Call Dashboard &amp; Queue</span>
         </button>
+        <button class="nav-item" data-view="unuploaded">
+          <span>Winners Unuploaded Campuses</span>
+          <span id="nav-unuploaded-badge" class="pill-count">0</span>
+        </button>
         <button class="nav-item" data-view="followups">
           <span>Callbacks &amp; Follow-Ups</span>
         </button>
@@ -209,6 +213,55 @@
           <div class="card">
             <div class="card-header"><h3>Invalid / Wrong Numbers Queue</h3></div>
             <div id="invalid-numbers-list" class="stack-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: WINNERS UNUPLOADED CAMPUSES -->
+      <section id="view-unuploaded" class="view-section hidden">
+        <section id="unuploaded-kpi-grid" class="kpi-grid"></section>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Winners Unuploaded Campuses</h3>
+              <div class="muted small">Institutions with 0 enrolled students / winners not yet uploaded (Kerala 2026-27)</div>
+            </div>
+            <div class="header-actions">
+              <span id="unuploaded-total-label" class="badge badge-neutral">0 campuses</span>
+            </div>
+          </div>
+
+          <div class="filters-bar" style="margin-bottom:12px">
+            <input type="text" id="u-filter-search" placeholder="Search institution, place, supervisor, phone..." />
+            <select id="u-filter-district">
+              <option value="">All Districts</option>
+            </select>
+            <select id="u-filter-status">
+              <option value="">All Call Statuses</option>
+              <option value="Pending First Call">Pending First Call</option>
+              <option value="Pending Second Call">Pending Second Call</option>
+              <option value="Pending Third Call">Pending Third Call</option>
+              <option value="Successfully Contacted">Successfully Contacted (Attended)</option>
+              <option value="Attempt 3 Completed">Attempt 3 Completed</option>
+              <option value="Email Notification Sent">Email Notification Sent</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Institution</th>
+                  <th>Supervisor &amp; Contact</th>
+                  <th class="num-col">Enrolled / Winners</th>
+                  <th class="center-col">Submission Status</th>
+                  <th>Call Status &amp; Action</th>
+                </tr>
+              </thead>
+              <tbody id="unuploaded-tbody"></tbody>
+            </table>
           </div>
         </div>
       </section>

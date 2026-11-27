@@ -148,6 +148,40 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS unuploaded_campuses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  serial_no INTEGER NOT NULL,
+  institution_name TEXT NOT NULL,
+  place TEXT,
+  district TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'Kerala',
+  supervisor_name TEXT,
+  supervisor_phone TEXT,
+  supervisor_email TEXT,
+  enrolled_students INTEGER NOT NULL DEFAULT 0,
+  winners_declared INTEGER NOT NULL DEFAULT 0,
+  submission_status TEXT NOT NULL DEFAULT 'No Enrolled Students',
+  assigned_staff_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  communication_status TEXT NOT NULL DEFAULT 'Pending First Call',
+  valid_attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_call_outcome TEXT,
+  last_called_at TEXT,
+  email_sent INTEGER NOT NULL DEFAULT 0,
+  email_sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS campus_call_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campus_id INTEGER NOT NULL REFERENCES unuploaded_campuses(id) ON DELETE CASCADE,
+  staff_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  attempt_number INTEGER NOT NULL,
+  call_outcome TEXT NOT NULL,
+  remarks TEXT,
+  called_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_students_district ON students(district);
 CREATE INDEX IF NOT EXISTS idx_students_institution ON students(institution_name);
 CREATE INDEX IF NOT EXISTS idx_students_staff ON students(assigned_staff_id);
@@ -157,6 +191,8 @@ CREATE INDEX IF NOT EXISTS idx_call_attempts_student ON call_attempts(student_id
 CREATE INDEX IF NOT EXISTS idx_call_attempts_staff ON call_attempts(staff_id, called_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(target_user_id, is_read, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_unuploaded_district ON unuploaded_campuses(district);
+CREATE INDEX IF NOT EXISTS idx_unuploaded_status ON unuploaded_campuses(communication_status);
 `;
 
 const DEFAULT_SETTINGS = {
@@ -215,6 +251,41 @@ function initDatabase(customPath) {
     db.prepare(`INSERT OR IGNORE INTO system_settings (key, value) VALUES ('email_from', 'India Holy Quran Award <info@indiaquranaward.com>')`).run();
   } catch (_) {
     // Ignore migration catch
+  }
+
+  try {
+    const existingCampuses = db.prepare('SELECT COUNT(*) AS cnt FROM unuploaded_campuses').get().cnt;
+    if (existingCampuses === 0) {
+      const { getUnuploadedCampuses } = require('./unuploadedCampusesData');
+      const campuses = getUnuploadedCampuses();
+      const insertCampus = db.prepare(
+        `INSERT INTO unuploaded_campuses (
+          serial_no, institution_name, place, district, state,
+          supervisor_name, supervisor_phone, supervisor_email,
+          enrolled_students, winners_declared, submission_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      );
+      db.exec('BEGIN');
+      for (const c of campuses) {
+        insertCampus.run(
+          c.serial_no,
+          c.institution_name,
+          c.place,
+          c.district,
+          c.state,
+          c.supervisor_name,
+          c.supervisor_phone,
+          c.supervisor_email,
+          c.enrolled_students,
+          c.winners_declared,
+          c.submission_status
+        );
+      }
+      db.exec('COMMIT');
+    }
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (_) {}
+    console.error('Failed to seed unuploaded_campuses:', err.message);
   }
 
   dbInstance = db;

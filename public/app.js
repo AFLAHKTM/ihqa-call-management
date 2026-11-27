@@ -115,10 +115,16 @@ async function loadDashboardAndQueue() {
   if (fDateFrom) params.set('dateFrom', fDateFrom);
   if (fDateTo) params.set('dateTo', fDateTo);
 
-  const [summary, listData] = await Promise.all([
+  const [summary, listData, campusMeta] = await Promise.all([
     api(`/api/dashboard/summary?${params.toString()}`),
     api(`/api/students?${params.toString()}`),
+    api('/api/campuses?limit=1').catch(() => null),
   ]);
+
+  if (campusMeta?.stats) {
+    const badge = document.getElementById('nav-unuploaded-badge');
+    if (badge) badge.textContent = campusMeta.stats.total;
+  }
 
   state.filtersMeta = summary.filtersMeta;
   state.workflowConfig = summary.workflowConfig;
@@ -433,8 +439,8 @@ function updateBulkBar() {
   bar.classList.toggle('hidden', count === 0);
 }
 
-function openUnattendPopup({ studentIds, contactType = 'coordinator', callSessionId = null, label = '' }) {
-  state.pendingUnattendTarget = { studentIds, contactType, callSessionId };
+function openUnattendPopup({ studentIds = [], campusId = null, contactType = 'coordinator', callSessionId = null, label = '' }) {
+  state.pendingUnattendTarget = { studentIds, campusId, contactType, callSessionId };
   document.getElementById('unattend-target-label').textContent = label
     ? `Institution: ${label}`
     : 'Tap the reason below to save immediately:';
@@ -853,6 +859,7 @@ function switchView(viewName) {
 
   const titles = {
     dashboard: 'CALL MANAGEMENT — Dashboard & Calling Queue',
+    unuploaded: 'Winners Unuploaded Campuses (373 Institutions)',
     followups: 'Callbacks, Three-Attempt & Wrong-Number Follow-Ups',
     staff: 'Calling Staff Management & Daily Performance',
     notifications: 'Central Notification Engine & Email Delivery Log',
@@ -861,11 +868,164 @@ function switchView(viewName) {
   };
   document.getElementById('view-title').textContent = titles[viewName] || 'CALL MANAGEMENT';
 
+  if (viewName === 'unuploaded') loadUnuploadedCampuses();
   if (viewName === 'followups') loadFollowupsView();
   if (viewName === 'staff') loadStaffView();
   if (viewName === 'notifications') loadNotifications();
   if (viewName === 'reports') loadReport();
   if (viewName === 'settings') loadSettingsAndAudit();
+}
+
+async function loadUnuploadedCampuses() {
+  const search = document.getElementById('u-filter-search')?.value.trim() || '';
+  const district = document.getElementById('u-filter-district')?.value || '';
+  const status = document.getElementById('u-filter-status')?.value || '';
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (district) params.set('district', district);
+  if (status) params.set('status', status);
+
+  const data = await api(`/api/campuses?${params.toString()}`);
+
+  const distSel = document.getElementById('u-filter-district');
+  if (distSel && data.districts) {
+    const prev = distSel.value;
+    distSel.innerHTML = `<option value="">All Districts</option>${data.districts
+      .map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
+      .join('')}`;
+    distSel.value = prev;
+  }
+
+  document.getElementById('nav-unuploaded-badge').textContent = data.stats.total;
+  document.getElementById('unuploaded-total-label').textContent = `${data.total} campuses`;
+
+  const kpiHtml = [
+    { label: 'Total Campuses', value: data.stats.total, cls: '' },
+    { label: 'Pending Calls', value: data.stats.pending, cls: 'warn' },
+    { label: 'Attended', value: data.stats.attended, cls: 'success' },
+    { label: 'Unattended', value: data.stats.unattended, cls: 'warn' },
+    { label: 'Auto-Emailed', value: data.stats.emailSent, cls: '' },
+  ]
+    .map(
+      (c) => `<div class="kpi-card ${c.cls}">
+        <div class="kpi-label">${escapeHtml(c.label)}</div>
+        <div class="kpi-value">${c.value}</div>
+      </div>`
+    )
+    .join('');
+  document.getElementById('unuploaded-kpi-grid').innerHTML = kpiHtml;
+
+  renderUnuploadedCampuses(data.rows);
+}
+
+function renderUnuploadedCampuses(rows) {
+  const tbody = document.getElementById('unuploaded-tbody');
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted">No unuploaded campuses match the active filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((c) => {
+      const cleanPhone = String(c.supervisor_phone || '').replace(/[^\d+]/g, '');
+      const locationLine = [c.place, c.district, c.state].filter(Boolean).join(', ');
+      const isAttended =
+        c.communication_status === 'Successfully Contacted' ||
+        c.communication_status === 'Follow-up Completed';
+
+      const actionHtml = isAttended
+        ? `<div class="row-action-btns is-attended">
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">✅ Attended</button>
+            <button type="button" class="btn btn-sm row-undo-btn u-undo-btn" data-id="${c.id}" title="Undo Attended — Revert to previous status">↩ Undo</button>
+          </div>`
+        : `<div class="row-action-btns">
+            <button type="button" class="btn btn-sm row-attend-btn u-attend-btn" data-id="${c.id}" title="Mark call attended and save">✅ Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn u-unattend-btn" data-id="${c.id}" data-label="${escapeHtml(c.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
+          </div>`;
+
+      return `<tr>
+        <td data-label="#"><strong>${c.serial_no}</strong></td>
+        <td data-label="Institution">
+          <div class="inst-title">${escapeHtml(c.institution_name)}</div>
+          <div class="inst-loc">${escapeHtml(locationLine)}</div>
+        </td>
+        <td data-label="Supervisor & Contact">
+          <div class="sup-name">${escapeHtml(c.supervisor_name || '-')}</div>
+          <div class="sup-contact">
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(c.supervisor_phone)}</a>` : '<span class="muted">No phone</span>'}
+            ${c.supervisor_email ? `<span class="sup-email"> · ${escapeHtml(c.supervisor_email)}</span>` : ''}
+          </div>
+        </td>
+        <td data-label="Enrolled / Winners" class="num-col">
+          <span class="students-count">${c.enrolled_students} / ${c.winners_declared}</span>
+        </td>
+        <td data-label="Submission Status" class="center-col">
+          <span class="badge badge-warn">${escapeHtml(c.submission_status)}</span>
+        </td>
+        <td data-label="Call Status & Action">
+          <div style="margin-bottom:6px">
+            <span class="badge ${statusBadgeClass(c.communication_status)}">${escapeHtml(c.communication_status)}</span>
+            <span class="badge badge-neutral">${c.valid_attempt_count}/3</span>
+          </div>
+          ${actionHtml}
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  document.querySelectorAll('.u-attend-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      await quickSaveCampusCall(Number(btn.dataset.id), 'Successfully Contacted');
+      btn.disabled = false;
+    });
+  });
+
+  document.querySelectorAll('.u-unattend-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openUnattendPopup({
+        campusId: Number(btn.dataset.id),
+        label: btn.dataset.label || '',
+      });
+    });
+  });
+
+  document.querySelectorAll('.u-undo-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await api(`/api/campuses/${btn.dataset.id}/calls/undo`, { method: 'POST' });
+        showToast('↩ Campus call reverted to Pending');
+        await loadUnuploadedCampuses();
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '↩ Undo';
+      }
+    });
+  });
+}
+
+async function quickSaveCampusCall(campusId, callOutcome) {
+  try {
+    const res = await api(`/api/campuses/${campusId}/calls`, {
+      method: 'POST',
+      body: JSON.stringify({ callOutcome }),
+    });
+    if (callOutcome === 'Successfully Contacted') {
+      showToast('✅ Saved: Attended');
+    } else if (res.emailResult?.sent && !res.emailResult?.simulated) {
+      showToast(`Saved: ${callOutcome} & Auto-email sent to supervisor`);
+    } else {
+      showToast(`Saved: ${callOutcome}`);
+    }
+    await loadUnuploadedCampuses();
+  } catch (err) {
+    showToast(err.message);
+  }
 }
 
 // Event Wiring
@@ -1140,13 +1300,24 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.unattend-choice-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.pendingUnattendTarget) return;
-      const { studentIds, contactType, callSessionId } = state.pendingUnattendTarget;
+      const { studentIds, campusId, contactType, callSessionId } = state.pendingUnattendTarget;
       const outcome = btn.dataset.outcome;
       document.getElementById('unattend-modal').classList.add('hidden');
       state.pendingUnattendTarget = null;
-      await quickSaveCallOutcome(studentIds, outcome, contactType, callSessionId);
+      if (campusId) {
+        await quickSaveCampusCall(campusId, outcome);
+      } else {
+        await quickSaveCallOutcome(studentIds, outcome, contactType, callSessionId);
+      }
     });
   });
+
+  document.getElementById('u-filter-search')?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadUnuploadedCampuses, 260);
+  });
+  document.getElementById('u-filter-district')?.addEventListener('change', loadUnuploadedCampuses);
+  document.getElementById('u-filter-status')?.addEventListener('change', loadUnuploadedCampuses);
 
   document.querySelectorAll('.chip').forEach((chip) => {
     chip.addEventListener('click', () => {

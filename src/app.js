@@ -9,6 +9,7 @@ const emailRoutes = require('./routes/emailRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const telephonyRoutes = require('./routes/telephonyRoutes');
+const campusRoutes = require('./routes/campusRoutes');
 
 function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ function createApp() {
   app.use('/api/reports', reportRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/telephony', telephonyRoutes);
+  app.use('/api/campuses', campusRoutes);
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
 
