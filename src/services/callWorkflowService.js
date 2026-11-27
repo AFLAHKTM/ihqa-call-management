@@ -83,6 +83,10 @@ function listStudents(filters = {}, user = null, db = getDb()) {
   if (filters.callStatus) {
     if (filters.callStatus === 'UNATTENDED') {
       where.push("s.valid_attempt_count >= 1 AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+    } else if (filters.callStatus === 'PENDING_ALL') {
+      where.push("s.communication_status IN ('Pending First Call', 'Pending Second Call', 'Pending Third Call', 'Callback Scheduled')");
+    } else if (filters.callStatus === 'CALLS_MADE') {
+      where.push('s.valid_attempt_count >= 1');
     } else {
       // Support matching either overall communication_status or last_call_outcome
       where.push('(s.communication_status = ? OR s.last_call_outcome = ?)');

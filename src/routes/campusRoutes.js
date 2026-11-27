@@ -44,6 +44,12 @@ router.get('/', (req, res) => {
   if (status) {
     if (status === 'UNATTENDED') {
       where.push("c.valid_attempt_count >= 1 AND c.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+    } else if (status === 'PENDING_ALL') {
+      where.push("c.communication_status IN ('Pending First Call', 'Pending Second Call', 'Pending Third Call')");
+    } else if (status === 'EMAIL_SENT') {
+      where.push('c.email_sent = 1');
+    } else if (status === 'CALLS_MADE') {
+      where.push('c.valid_attempt_count >= 1');
     } else {
       where.push('c.communication_status = ?');
       params.push(status);

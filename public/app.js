@@ -230,12 +230,12 @@ function populateFilterDropdowns(meta) {
 
 function renderKpis(stats) {
   const simpleCards = [
-    { label: 'Total Campuses', value: stats.totalStudentsAssigned, cls: '' },
-    { label: 'Pending Calls', value: stats.followupPending, cls: 'warn' },
-    { label: 'Attended', value: stats.successfullyContacted, cls: 'success' },
-    { label: 'Unattended', value: (stats.notReachable || 0) + (stats.noAnswer || 0), cls: 'warn' },
-    { label: 'Auto-Emailed', value: stats.emailNotificationsSent, cls: '' },
-    { label: 'Calls Made', value: stats.totalCallsAttempted, cls: '' },
+    { label: 'Total Campuses', value: stats.totalStudentsAssigned, cls: '', filterStatus: '' },
+    { label: 'Pending Calls', value: stats.followupPending, cls: 'warn', filterStatus: 'PENDING_ALL' },
+    { label: 'Attended', value: stats.successfullyContacted, cls: 'success', filterStatus: 'Successfully Contacted' },
+    { label: 'Unattended', value: (stats.notReachable || 0) + (stats.noAnswer || 0), cls: 'warn', filterStatus: 'UNATTENDED' },
+    { label: 'Auto-Emailed', value: stats.emailNotificationsSent, cls: '', filterStatus: 'Email Notification Sent' },
+    { label: 'Calls Made', value: stats.totalCallsAttempted, cls: '', filterStatus: 'CALLS_MADE' },
   ];
   const allCards = [
     { label: 'Students Assigned', value: stats.totalStudentsAssigned, cls: '' },
@@ -250,14 +250,41 @@ function renderKpis(stats) {
     { label: 'Completed Follow-ups', value: stats.completedFollowups, cls: 'success' },
   ];
   const cards = state.showAllKpis ? allCards : simpleCards;
-  document.getElementById('kpi-grid').innerHTML = cards
-    .map(
-      (c) => `<div class="kpi-card ${c.cls}">
+  const activeStatus = document.getElementById('f-status')?.value || '';
+  const kpiGrid = document.getElementById('kpi-grid');
+  kpiGrid.innerHTML = cards
+    .map((c) => {
+      const hasFilter = c.filterStatus !== undefined;
+      const isActive = hasFilter && activeStatus === c.filterStatus && c.filterStatus !== '';
+      return `<div class="kpi-card ${c.cls} ${hasFilter ? 'clickable' : ''} ${isActive ? 'kpi-active' : ''}" ${hasFilter ? `data-kpi-status="${escapeHtml(c.filterStatus)}" title="Click to view ${escapeHtml(c.label)}"` : ''}>
         <div class="kpi-label">${escapeHtml(c.label)}</div>
         <div class="kpi-value">${c.value}</div>
-      </div>`
-    )
+      </div>`;
+    })
     .join('');
+
+  kpiGrid.querySelectorAll('.kpi-card.clickable').forEach((card) => {
+    card.addEventListener('click', async () => {
+      const targetStatus = card.dataset.kpiStatus ?? '';
+      const fStatus = document.getElementById('f-status');
+      const fAttempts = document.getElementById('f-attempts');
+      if (fStatus) {
+        if (targetStatus && !Array.from(fStatus.options).some((o) => o.value === targetStatus)) {
+          const opt = document.createElement('option');
+          opt.value = targetStatus;
+          opt.textContent = targetStatus;
+          fStatus.appendChild(opt);
+        }
+        fStatus.value = targetStatus;
+      }
+      if (fAttempts) fAttempts.value = '';
+      document.querySelectorAll('#quick-status-pills .pill-filter').forEach((p) => {
+        p.classList.toggle('active', (p.dataset.quickStatus ?? '') === targetStatus);
+      });
+      await loadDashboardAndQueue();
+      document.getElementById('students-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 }
 
 function renderStudentsTable(rows) {
@@ -962,21 +989,32 @@ async function loadUnuploadedCampuses() {
   document.getElementById('unuploaded-total-label').textContent = `${data.total} campuses`;
 
   const kpiHtml = [
-    { label: 'Total Campuses', value: data.stats.total, cls: '' },
-    { label: 'Pending Calls', value: data.stats.pending, cls: 'warn' },
-    { label: 'Attended', value: data.stats.attended, cls: 'success' },
-    { label: 'Unattended', value: data.stats.unattended, cls: 'warn' },
-    { label: 'Auto-Emailed', value: data.stats.emailSent, cls: '' },
-    { label: 'Calls Made', value: data.stats.callsMade || 0, cls: '' },
+    { label: 'Total Campuses', value: data.stats.total, cls: '', filterStatus: '' },
+    { label: 'Pending Calls', value: data.stats.pending, cls: 'warn', filterStatus: 'PENDING_ALL' },
+    { label: 'Attended', value: data.stats.attended, cls: 'success', filterStatus: 'Successfully Contacted' },
+    { label: 'Unattended', value: data.stats.unattended, cls: 'warn', filterStatus: 'UNATTENDED' },
+    { label: 'Auto-Emailed', value: data.stats.emailSent, cls: '', filterStatus: 'EMAIL_SENT' },
+    { label: 'Calls Made', value: data.stats.callsMade || 0, cls: '', filterStatus: 'CALLS_MADE' },
   ]
-    .map(
-      (c) => `<div class="kpi-card ${c.cls}">
+    .map((c) => {
+      const isActive = status === c.filterStatus && c.filterStatus !== '';
+      return `<div class="kpi-card clickable ${c.cls} ${isActive ? 'kpi-active' : ''}" data-u-kpi-status="${escapeHtml(c.filterStatus)}" title="Click to view ${escapeHtml(c.label)}">
         <div class="kpi-label">${escapeHtml(c.label)}</div>
         <div class="kpi-value">${c.value}</div>
-      </div>`
-    )
+      </div>`;
+    })
     .join('');
-  document.getElementById('unuploaded-kpi-grid').innerHTML = kpiHtml;
+  const uKpiGrid = document.getElementById('unuploaded-kpi-grid');
+  uKpiGrid.innerHTML = kpiHtml;
+  uKpiGrid.querySelectorAll('.kpi-card.clickable').forEach((card) => {
+    card.addEventListener('click', async () => {
+      const targetStatus = card.dataset.uKpiStatus ?? '';
+      const statusSel = document.getElementById('u-filter-status');
+      if (statusSel) statusSel.value = targetStatus;
+      await loadUnuploadedCampuses();
+      document.getElementById('unuploaded-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 
   state.unuploadedCampuses = data.rows || [];
   renderUnuploadedCampuses(data.rows);
