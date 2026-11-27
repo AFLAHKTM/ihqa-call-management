@@ -105,6 +105,11 @@ async function enterApp() {
   document.getElementById('app-shell').classList.remove('hidden');
   document.getElementById('current-user-name').textContent = state.user.full_name;
   document.getElementById('current-user-role').textContent = state.user.role;
+  const greetingEl = document.getElementById('topbar-greeting');
+  if (greetingEl) {
+    const greetName = state.user.role === 'ADMIN' ? 'Admin' : state.user.full_name;
+    greetingEl.textContent = `👋 Hey ${greetName}`;
+  }
   applyRoleVisibility();
   await loadAllData();
   if (['kashif', 'salman', 'suhail'].includes(state.user.username)) {
