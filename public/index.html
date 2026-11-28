@@ -69,6 +69,14 @@
           <span>Approved Dated</span>
           <span id="nav-approved-badge" class="pill-count">0</span>
         </button>
+        <button class="nav-item" data-view="call-monday">
+          <span>Call for Monday</span>
+          <span id="nav-monday-badge" class="pill-count">0</span>
+        </button>
+        <button class="nav-item" data-view="call-tuesday">
+          <span>Call for Tuesday</span>
+          <span id="nav-tuesday-badge" class="pill-count">0</span>
+        </button>
         <button class="nav-item" data-view="followups">
           <span>Callbacks &amp; Follow-Ups</span>
         </button>
@@ -322,9 +330,92 @@
                   <th>Handled By</th>
                   <th>Approved Date</th>
                   <th>Status</th>
+                  <th>Transfer to Monday or Tuesday</th>
                 </tr>
               </thead>
               <tbody id="approved-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: CALL FOR MONDAY -->
+      <section id="view-call-monday" class="view-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Call for Monday</h3>
+              <div class="muted small">Establishments transferred from Approved Dated for Monday calling</div>
+            </div>
+            <div class="header-actions">
+              <span id="monday-total-label" class="badge badge-success">0 scheduled</span>
+            </div>
+          </div>
+
+          <div id="monday-staff-pills" class="quick-pills admin-supervisor-only" style="margin-bottom:10px"></div>
+
+          <div class="filters-bar" style="margin-bottom:12px">
+            <input type="text" id="monday-filter-search" placeholder="Search institution, student, supervisor, phone..." />
+            <select id="monday-filter-district">
+              <option value="">All Districts</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Institution</th>
+                  <th>Supervisor &amp; Contact</th>
+                  <th>Category &amp; Winner</th>
+                  <th>Handled By</th>
+                  <th>Approved Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="monday-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: CALL FOR TUESDAY -->
+      <section id="view-call-tuesday" class="view-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Call for Tuesday</h3>
+              <div class="muted small">Establishments transferred from Approved Dated for Tuesday calling</div>
+            </div>
+            <div class="header-actions">
+              <span id="tuesday-total-label" class="badge badge-success">0 scheduled</span>
+            </div>
+          </div>
+
+          <div id="tuesday-staff-pills" class="quick-pills admin-supervisor-only" style="margin-bottom:10px"></div>
+
+          <div class="filters-bar" style="margin-bottom:12px">
+            <input type="text" id="tuesday-filter-search" placeholder="Search institution, student, supervisor, phone..." />
+            <select id="tuesday-filter-district">
+              <option value="">All Districts</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Institution</th>
+                  <th>Supervisor &amp; Contact</th>
+                  <th>Category &amp; Winner</th>
+                  <th>Handled By</th>
+                  <th>Approved Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tuesday-tbody"></tbody>
             </table>
           </div>
         </div>

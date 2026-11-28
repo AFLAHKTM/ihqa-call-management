@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS students (
   three_attempt_sequence_id INTEGER NOT NULL DEFAULT 0,
   email_notified_sequence INTEGER NOT NULL DEFAULT 0,
   notes_summary TEXT,
+  scheduled_call_day TEXT,
   is_anonymized INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -250,6 +251,18 @@ function initDatabase(customPath) {
     db.prepare(`UPDATE system_settings SET value = 'info@indiaquranaward.com' WHERE key = 'official_contact_email' AND value LIKE '%coordination@ihqa%'`).run();
     db.prepare(`UPDATE system_settings SET value = 'India Holy Quran Award <info@indiaquranaward.com>' WHERE key = 'email_from' AND value LIKE '%coordination@ihqa%'`).run();
     db.prepare(`INSERT OR IGNORE INTO system_settings (key, value) VALUES ('email_from', 'India Holy Quran Award <info@indiaquranaward.com>')`).run();
+  } catch (_) {
+    // Ignore migration catch
+  }
+
+  try {
+    const studentCols = db
+      .prepare('PRAGMA table_info(students)')
+      .all()
+      .map((c) => c.name);
+    if (!studentCols.includes('scheduled_call_day')) {
+      db.exec('ALTER TABLE students ADD COLUMN scheduled_call_day TEXT');
+    }
   } catch (_) {
     // Ignore migration catch
   }

@@ -138,6 +138,22 @@ async function loadAllData() {
         }
       })
       .catch(() => null),
+    api('/api/students/scheduled-day?day=Monday')
+      .then((monMeta) => {
+        if (monMeta?.overallTotal !== undefined) {
+          const badge = document.getElementById('nav-monday-badge');
+          if (badge) badge.textContent = monMeta.overallTotal;
+        }
+      })
+      .catch(() => null),
+    api('/api/students/scheduled-day?day=Tuesday')
+      .then((tueMeta) => {
+        if (tueMeta?.overallTotal !== undefined) {
+          const badge = document.getElementById('nav-tuesday-badge');
+          if (badge) badge.textContent = tueMeta.overallTotal;
+        }
+      })
+      .catch(() => null),
   ]);
 }
 
@@ -964,6 +980,8 @@ function switchView(viewName) {
     dashboard: 'CALL MANAGEMENT — Dashboard & Calling Queue',
     unuploaded: 'Winners Unuploaded Campuses (373 Institutions)',
     'approved-dated': 'Approved Dated — Handled & Attended Calls',
+    'call-monday': 'Call for Monday — Scheduled Establishments',
+    'call-tuesday': 'Call for Tuesday — Scheduled Establishments',
     followups: 'Callbacks, Three-Attempt & Wrong-Number Follow-Ups',
     staff: 'Calling Staff Management & Daily Performance',
     notifications: 'Central Notification Engine & Email Delivery Log',
@@ -974,6 +992,8 @@ function switchView(viewName) {
 
   if (viewName === 'unuploaded') loadUnuploadedCampuses();
   if (viewName === 'approved-dated') loadApprovedDated();
+  if (viewName === 'call-monday') loadScheduledDay('Monday');
+  if (viewName === 'call-tuesday') loadScheduledDay('Tuesday');
   if (viewName === 'followups') loadFollowupsView();
   if (viewName === 'staff') loadStaffView();
   if (viewName === 'notifications') loadNotifications();
@@ -1029,7 +1049,159 @@ async function loadApprovedDated() {
 function renderApprovedDated(rows) {
   const tbody = document.getElementById('approved-tbody');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="muted">No approved / attended calls found yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted">No approved / attended calls found yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((s, idx) => {
+      const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+      const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
+      const phone = s.coordinator_mobile || s.student_mobile || '';
+      const cleanPhone = String(phone).replace(/[^\d+]/g, '');
+      const email = s.coordinator_email || s.email || '';
+      const locationLine = [s.institution_place, s.district, 'Kerala'].filter(Boolean).join(', ');
+      const approvedAt = s.last_called_at || s.updated_at || '';
+      const isMon = s.scheduled_call_day === 'Monday';
+      const isTue = s.scheduled_call_day === 'Tuesday';
+
+      return `<tr>
+        <td data-label="#"><strong>${displayNo}</strong></td>
+        <td data-label="Institution">
+          <div class="inst-title">${escapeHtml(s.institution_name)}</div>
+          <div class="inst-loc">${escapeHtml(locationLine)}</div>
+        </td>
+        <td data-label="Supervisor & Contact">
+          <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
+          <div class="sup-contact">
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
+          </div>
+        </td>
+        <td data-label="Category & Winner">
+          <div class="cat-breakdown-label">${escapeHtml(s.exam_category)}:</div>
+          <div class="cat-breakdown-winner">${escapeHtml(s.student_name)}</div>
+        </td>
+        <td data-label="Handled By">
+          <span class="badge badge-neutral">${escapeHtml(s.assigned_staff_name || '-')}</span>
+        </td>
+        <td data-label="Approved Date">
+          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
+        </td>
+        <td data-label="Status">
+          <span class="badge badge-success">✅ Attended</span>
+        </td>
+        <td data-label="Transfer to Monday or Tuesday">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm ${isMon ? 'btn-primary' : 'btn-outline'} btn-transfer-day" data-id="${s.id}" data-day="Monday">
+              ${isMon ? '✓ Monday' : 'Transfer to Monday'}
+            </button>
+            <button type="button" class="btn btn-sm ${isTue ? 'btn-primary' : 'btn-outline'} btn-transfer-day" data-id="${s.id}" data-day="Tuesday">
+              ${isTue ? '✓ Tuesday' : 'Transfer to Tuesday'}
+            </button>
+          </div>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  tbody.querySelectorAll('.btn-transfer-day').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      transferStudentDay(Number(btn.dataset.id), btn.dataset.day);
+    });
+  });
+}
+
+async function transferStudentDay(studentId, day) {
+  try {
+    await api(`/api/students/${studentId}/transfer-day`, {
+      method: 'POST',
+      body: JSON.stringify({ day }),
+    });
+    showToast(day ? `Transferred to Call for ${day}` : 'Removed from scheduled day', 'success');
+    await Promise.all([
+      refreshDayBadges(),
+      !document.getElementById('view-approved-dated').classList.contains('hidden') ? loadApprovedDated() : Promise.resolve(),
+      !document.getElementById('view-call-monday').classList.contains('hidden') ? loadScheduledDay('Monday') : Promise.resolve(),
+      !document.getElementById('view-call-tuesday').classList.contains('hidden') ? loadScheduledDay('Tuesday') : Promise.resolve(),
+    ]);
+  } catch (err) {
+    showToast(err.message || 'Transfer failed', 'error');
+  }
+}
+
+async function refreshDayBadges() {
+  await Promise.all([
+    api('/api/students/scheduled-day?day=Monday')
+      .then((d) => {
+        const el = document.getElementById('nav-monday-badge');
+        if (el && d?.overallTotal !== undefined) el.textContent = d.overallTotal;
+      })
+      .catch(() => null),
+    api('/api/students/scheduled-day?day=Tuesday')
+      .then((d) => {
+        const el = document.getElementById('nav-tuesday-badge');
+        if (el && d?.overallTotal !== undefined) el.textContent = d.overallTotal;
+      })
+      .catch(() => null),
+  ]);
+}
+
+async function loadScheduledDay(day) {
+  const key = day.toLowerCase();
+  const search = document.getElementById(`${key}-filter-search`)?.value.trim() || '';
+  const district = document.getElementById(`${key}-filter-district`)?.value || '';
+  const stateKey = day === 'Monday' ? 'mondayStaffId' : 'tuesdayStaffId';
+  const staffId = state[stateKey] || '';
+
+  const params = new URLSearchParams({ day });
+  if (search) params.set('search', search);
+  if (district) params.set('district', district);
+  if (staffId) params.set('staffId', staffId);
+
+  const data = await api(`/api/students/scheduled-day?${params.toString()}`);
+
+  const distSel = document.getElementById(`${key}-filter-district`);
+  if (distSel && data.districts) {
+    const prev = distSel.value;
+    distSel.innerHTML = `<option value="">All Districts</option>${data.districts
+      .map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
+      .join('')}`;
+    distSel.value = prev;
+  }
+
+  const pillsEl = document.getElementById(`${key}-staff-pills`);
+  if (pillsEl && data.staffBreakdown) {
+    const pills = [
+      `<button type="button" class="pill-filter ${!staffId ? 'active' : ''}" data-day-staff="">All (${data.overallTotal})</button>`,
+      ...data.staffBreakdown.map(
+        (s) =>
+          `<button type="button" class="pill-filter ${String(staffId) === String(s.id) ? 'active' : ''}" data-day-staff="${s.id}">${escapeHtml(s.full_name)} (${s.count})</button>`
+      ),
+    ];
+    pillsEl.innerHTML = pills.join('');
+    pillsEl.querySelectorAll('.pill-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state[stateKey] = btn.dataset.dayStaff || '';
+        loadScheduledDay(day);
+      });
+    });
+  }
+
+  const navBadge = document.getElementById(`nav-${key}-badge`);
+  if (navBadge) navBadge.textContent = data.overallTotal ?? data.total;
+  const totalLabel = document.getElementById(`${key}-total-label`);
+  if (totalLabel) totalLabel.textContent = `${data.total} scheduled`;
+
+  renderScheduledDay(day, data.rows || []);
+}
+
+function renderScheduledDay(day, rows) {
+  const key = day.toLowerCase();
+  const otherDay = day === 'Monday' ? 'Tuesday' : 'Monday';
+  const tbody = document.getElementById(`${key}-tbody`);
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No establishments transferred to Call for ${day} yet.</td></tr>`;
     return;
   }
 
@@ -1066,12 +1238,21 @@ function renderApprovedDated(rows) {
         <td data-label="Approved Date">
           <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
         </td>
-        <td data-label="Status">
-          <span class="badge badge-success">✅ Attended</span>
+        <td data-label="Actions">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm btn-outline btn-move-day" data-id="${s.id}" data-day="${otherDay}">Move to ${otherDay}</button>
+            <button type="button" class="btn btn-sm btn-outline btn-move-day" data-id="${s.id}" data-day="">Remove</button>
+          </div>
         </td>
       </tr>`;
     })
     .join('');
+
+  tbody.querySelectorAll('.btn-move-day').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      transferStudentDay(Number(btn.dataset.id), btn.dataset.day || null);
+    });
+  });
 }
 
 async function loadUnuploadedCampuses() {
@@ -1628,6 +1809,20 @@ document.addEventListener('DOMContentLoaded', () => {
     aSearchTimer = setTimeout(loadApprovedDated, 240);
   });
   document.getElementById('a-filter-district')?.addEventListener('change', loadApprovedDated);
+
+  let mondaySearchTimer = null;
+  document.getElementById('monday-filter-search')?.addEventListener('input', () => {
+    clearTimeout(mondaySearchTimer);
+    mondaySearchTimer = setTimeout(() => loadScheduledDay('Monday'), 240);
+  });
+  document.getElementById('monday-filter-district')?.addEventListener('change', () => loadScheduledDay('Monday'));
+
+  let tuesdaySearchTimer = null;
+  document.getElementById('tuesday-filter-search')?.addEventListener('input', () => {
+    clearTimeout(tuesdaySearchTimer);
+    tuesdaySearchTimer = setTimeout(() => loadScheduledDay('Tuesday'), 240);
+  });
+  document.getElementById('tuesday-filter-district')?.addEventListener('change', () => loadScheduledDay('Tuesday'));
 
   const editCampusModal = document.getElementById('edit-campus-modal');
   document.getElementById('close-edit-campus-modal')?.addEventListener('click', () => {

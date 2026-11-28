@@ -112,6 +112,131 @@ router.get('/approved-dated', (req, res) => {
   });
 });
 
+router.get('/scheduled-day', (req, res) => {
+  const db = getDb();
+  const { day = '', search = '', district = '', staffId = '' } = req.query;
+  if (!['Monday', 'Tuesday'].includes(day)) {
+    return res.status(400).json({ error: 'day must be Monday or Tuesday' });
+  }
+
+  const where = ['s.scheduled_call_day = ?'];
+  const params = [day];
+
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(req.user.id);
+  } else if (staffId) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(Number(staffId));
+  }
+
+  if (search) {
+    const q = `%${search.trim()}%`;
+    where.push(
+      '(s.institution_name LIKE ? OR s.student_name LIKE ? OR s.district LIKE ? OR s.coordinator_name LIKE ? OR s.coordinator_mobile LIKE ? OR s.student_mobile LIKE ?)'
+    );
+    params.push(q, q, q, q, q, q);
+  }
+  if (district) {
+    where.push('s.district = ?');
+    params.push(district);
+  }
+
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+  const rows = db
+    .prepare(
+      `SELECT s.*,
+              u.full_name AS assigned_staff_name,
+              u.username AS assigned_staff_username,
+              i.place AS institution_place,
+              i.winner_status AS institution_winner_status
+       FROM students s
+       LEFT JOIN users u ON u.id = s.assigned_staff_id
+       LEFT JOIN institutions i ON i.id = s.institution_id
+       ${whereSql}
+       ORDER BY COALESCE(s.last_called_at, s.updated_at) DESC, s.id DESC`
+    )
+    .all(...params);
+
+  const baseWhere =
+    req.user.role === ROLES.CALLING_STAFF
+      ? 'WHERE s.scheduled_call_day = ? AND s.assigned_staff_id = ?'
+      : 'WHERE s.scheduled_call_day = ?';
+  const baseParams = req.user.role === ROLES.CALLING_STAFF ? [day, req.user.id] : [day];
+
+  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3 };
+  const staffBreakdown = db
+    .prepare(
+      `SELECT u.id, u.username, u.full_name, COUNT(s.id) AS count
+       FROM students s
+       JOIN users u ON u.id = s.assigned_staff_id
+       ${baseWhere}
+       GROUP BY u.id, u.username, u.full_name`
+    )
+    .all(...baseParams)
+    .sort((a, b) => (orderRank[a.username] || 99) - (orderRank[b.username] || 99));
+
+  const overallTotal = db
+    .prepare(`SELECT COUNT(*) AS cnt FROM students s ${baseWhere}`)
+    .get(...baseParams).cnt;
+
+  const districts = db
+    .prepare(
+      `SELECT DISTINCT s.district
+       FROM students s
+       ${baseWhere}
+       ORDER BY s.district ASC`
+    )
+    .all(...baseParams)
+    .map((r) => r.district);
+
+  res.json({
+    day,
+    rows,
+    total: rows.length,
+    overallTotal,
+    districts,
+    staffBreakdown,
+  });
+});
+
+router.post('/:id/transfer-day', (req, res) => {
+  const db = getDb();
+  const studentId = Number(req.params.id);
+  const rawDay = req.body?.day;
+  const day = rawDay === null || rawDay === '' ? null : String(rawDay);
+
+  if (day !== null && day !== 'Monday' && day !== 'Tuesday') {
+    return res.status(400).json({ error: 'day must be Monday, Tuesday, or null' });
+  }
+
+  const student = db.prepare('SELECT id, assigned_staff_id, institution_name FROM students WHERE id = ?').get(studentId);
+  if (!student) {
+    return res.status(404).json({ error: 'Student / establishment not found' });
+  }
+  if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  db.prepare(`UPDATE students SET scheduled_call_day = ?, updated_at = datetime('now') WHERE id = ?`).run(
+    day,
+    studentId
+  );
+
+  logAudit(
+    {
+      actorUserId: req.user.id,
+      action: day ? 'TRANSFER_CALL_DAY' : 'CLEAR_CALL_DAY',
+      entityType: 'student',
+      entityId: studentId,
+      details: { institutionName: student.institution_name, scheduledCallDay: day },
+    },
+    db
+  );
+
+  res.json({ ok: true, id: studentId, scheduled_call_day: day });
+});
+
 router.post('/', requireRole(ROLES.ADMIN, ROLES.SUPERVISOR), (req, res) => {
   const {
     registrationNumber,
