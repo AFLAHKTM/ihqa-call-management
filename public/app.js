@@ -226,6 +226,7 @@ async function loadDashboardAndQueue() {
   ]);
 
   if (cacheKey && !params.toString()) {
+    state.allStudents = listData.rows || [];
     try {
       localStorage.setItem(cacheKey, JSON.stringify({ summary, listData }));
     } catch (_) {}
@@ -331,7 +332,7 @@ function renderKpis(stats) {
     .join('');
 
   kpiGrid.querySelectorAll('.kpi-card.clickable').forEach((card) => {
-    card.addEventListener('click', async () => {
+    card.addEventListener('click', () => {
       const targetStatus = card.dataset.kpiStatus ?? '';
       const fStatus = document.getElementById('f-status');
       const fAttempts = document.getElementById('f-attempts');
@@ -348,8 +349,38 @@ function renderKpis(stats) {
       document.querySelectorAll('#quick-status-pills .pill-filter').forEach((p) => {
         p.classList.toggle('active', (p.dataset.quickStatus ?? '') === targetStatus);
       });
-      await loadDashboardAndQueue();
+      kpiGrid.querySelectorAll('.kpi-card.clickable').forEach((c) => {
+        c.classList.toggle('kpi-active', (c.dataset.kpiStatus ?? '') === targetStatus && targetStatus !== '');
+      });
+
+      if (Array.isArray(state.allStudents) && state.allStudents.length) {
+        const filtered = state.allStudents.filter((s) => {
+          if (!targetStatus) return true;
+          if (targetStatus === 'PENDING_ALL') {
+            return ['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status);
+          }
+          if (targetStatus === 'Successfully Contacted') {
+            return ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
+          }
+          if (targetStatus === 'UNATTENDED') {
+            return Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
+          }
+          if (targetStatus === 'Email Notification Sent') {
+            return s.communication_status === 'Email Notification Sent' || Number(s.email_notified_sequence || 0) > 0;
+          }
+          if (targetStatus === 'CALLS_MADE') {
+            return Number(s.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
+          }
+          return s.communication_status === targetStatus;
+        });
+        state.students = filtered;
+        const qb = document.getElementById('queue-count-badge');
+        if (qb) qb.textContent = filtered.length;
+        renderStudentsTable(filtered);
+      }
+
       document.getElementById('students-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      loadDashboardAndQueue();
     });
   });
 }
@@ -1372,6 +1403,7 @@ async function loadUnuploadedCampuses() {
 
   const data = await api(`/api/campuses?${params.toString()}`);
   if (cacheKey && !params.toString()) {
+    state.allUnuploadedCampuses = data.rows || [];
     try {
       localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (_) {}
@@ -1440,12 +1472,40 @@ function applyCampusesPayload(data, staffId, status) {
   const uKpiGrid = document.getElementById('unuploaded-kpi-grid');
   uKpiGrid.innerHTML = kpiHtml;
   uKpiGrid.querySelectorAll('.kpi-card.clickable').forEach((card) => {
-    card.addEventListener('click', async () => {
+    card.addEventListener('click', () => {
       const targetStatus = card.dataset.uKpiStatus ?? '';
       const statusSel = document.getElementById('u-filter-status');
       if (statusSel) statusSel.value = targetStatus;
-      await loadUnuploadedCampuses();
+      uKpiGrid.querySelectorAll('.kpi-card.clickable').forEach((c) => {
+        c.classList.toggle('kpi-active', (c.dataset.uKpiStatus ?? '') === targetStatus && targetStatus !== '');
+      });
+      if (Array.isArray(state.allUnuploadedCampuses) && state.allUnuploadedCampuses.length) {
+        const filtered = state.allUnuploadedCampuses.filter((c) => {
+          if (!targetStatus) return true;
+          if (targetStatus === 'PENDING_ALL') {
+            return ['Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(c.communication_status);
+          }
+          if (targetStatus === 'Successfully Contacted') {
+            return ['Successfully Contacted', 'Follow-up Completed'].includes(c.communication_status);
+          }
+          if (targetStatus === 'UNATTENDED') {
+            return Number(c.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(c.communication_status);
+          }
+          if (targetStatus === 'EMAIL_SENT') {
+            return c.communication_status === 'Email Notification Sent' || Number(c.email_sent || 0) > 0;
+          }
+          if (targetStatus === 'CALLS_MADE') {
+            return Number(c.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(c.communication_status);
+          }
+          return c.communication_status === targetStatus;
+        });
+        state.unuploadedCampuses = filtered;
+        const lbl = document.getElementById('unuploaded-total-label');
+        if (lbl) lbl.textContent = `${filtered.length} campuses`;
+        renderUnuploadedCampuses(filtered);
+      }
       document.getElementById('unuploaded-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      loadUnuploadedCampuses();
     });
   });
 
