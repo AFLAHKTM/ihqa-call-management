@@ -178,25 +178,25 @@ router.get('/scheduled-day/export', (req, res) => {
   const reportRows = rows.map((s, idx) => {
     const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
     const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
-    return [
-      displayNo,
-      s.registration_number || '',
-      s.institution_name || '',
-      s.institution_place || '',
-      s.district || '',
-      s.coordinator_name || '',
-      s.coordinator_mobile || '',
-      s.coordinator_email || '',
-      s.exam_category || '',
-      s.student_name || '',
-      s.assigned_staff_name || '',
-      s.last_called_at || '',
-      s.scheduled_call_day || '',
-    ];
+    return {
+      '#': displayNo,
+      'Reg No': s.registration_number || '',
+      'Institution': s.institution_name || '',
+      'Place': s.institution_place || '',
+      'District': s.district || '',
+      'Supervisor': s.coordinator_name || '',
+      'Phone': s.coordinator_mobile || '',
+      'Email': s.coordinator_email || '',
+      'Category': s.exam_category || '',
+      'Winner': s.student_name || '',
+      'Handled By': s.assigned_staff_name || '',
+      'Approved Date': s.last_called_at || '',
+      'Scheduled Day': s.scheduled_call_day || '',
+    };
   });
 
-  const report = { columns, rows: reportRows };
   const safeName = `Call_for_${day}`;
+  const report = { title: safeName, columns, rows: reportRows };
 
   if (format === 'excel') {
     const xml = reportToExcelXml(report);
