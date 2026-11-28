@@ -168,6 +168,51 @@ async function loadAllData() {
   await Promise.all([loadDashboardAndQueue(), loadNotifications()]);
 }
 
+function filterDashboardStudentsInMemory() {
+  if (!Array.isArray(state.allStudents) || !state.allStudents.length) return false;
+  const q = (document.getElementById('f-quick-search')?.value || '').trim().toLowerCase();
+  const section = state.activeSection || '';
+  const staffId = document.getElementById('f-staff')?.value || '';
+  const statusVal = document.getElementById('f-status')?.value || '';
+  const attemptsVal = document.getElementById('f-attempts')?.value || '';
+  const districtVal = document.getElementById('f-district')?.value || '';
+
+  const filtered = state.allStudents.filter((s) => {
+    if (section && s.exam_category !== section) return false;
+    if (staffId && String(s.assigned_staff_id) !== String(staffId)) return false;
+    if (districtVal && s.district !== districtVal) return false;
+    if (attemptsVal !== '' && Number(s.valid_attempt_count || 0) < Number(attemptsVal)) return false;
+    if (statusVal) {
+      if (statusVal === 'PENDING_ALL') {
+        if (!['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status)) return false;
+      } else if (statusVal === 'UNATTENDED') {
+        if (!(Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status))) return false;
+      } else if (statusVal === 'Email Notification Sent') {
+        if (!(s.communication_status === 'Email Notification Sent' || Number(s.email_notified_sequence || 0) > 0)) return false;
+      } else if (statusVal === 'CALLS_MADE') {
+        if (!(Number(s.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status))) return false;
+      } else if (statusVal === 'INVALID_NUMBER') {
+        if (!(Number(s.invalid_number_flagged || 0) > 0)) return false;
+      } else if (s.communication_status !== statusVal) {
+        return false;
+      }
+    }
+    if (q) {
+      const hit = [s.institution_name, s.student_name, s.district, s.coordinator_name, s.coordinator_mobile, s.student_mobile]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+      if (!hit) return false;
+    }
+    return true;
+  });
+
+  state.students = filtered;
+  const qb = document.getElementById('queue-count-badge');
+  if (qb) qb.textContent = filtered.length;
+  renderStudentsTable(filtered);
+  return true;
+}
+
 function applyDashboardPayload(summary, listData) {
   state.filtersMeta = summary.filtersMeta;
   if (summary.navBadges) {
@@ -205,8 +250,11 @@ function applyDashboardPayload(summary, listData) {
     dashStaffPills.innerHTML = pills.join('');
     dashStaffPills.querySelectorAll('.pill-filter').forEach((btn) => {
       btn.addEventListener('click', () => {
+        dashStaffPills.querySelectorAll('.pill-filter').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
         const fStaffSel = document.getElementById('f-staff');
         if (fStaffSel) fStaffSel.value = btn.dataset.dashStaff || '';
+        filterDashboardStudentsInMemory();
         loadDashboardAndQueue();
       });
     });
@@ -1900,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.section-tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       state.activeSection = tab.dataset.section || '';
+      filterDashboardStudentsInMemory();
       loadDashboardAndQueue();
     });
   });
