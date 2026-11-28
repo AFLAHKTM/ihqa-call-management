@@ -138,22 +138,7 @@ async function loadAllData() {
         }
       })
       .catch(() => null),
-    api('/api/students/scheduled-day?day=Monday')
-      .then((monMeta) => {
-        if (monMeta?.overallTotal !== undefined) {
-          const badge = document.getElementById('nav-monday-badge');
-          if (badge) badge.textContent = monMeta.overallTotal;
-        }
-      })
-      .catch(() => null),
-    api('/api/students/scheduled-day?day=Tuesday')
-      .then((tueMeta) => {
-        if (tueMeta?.overallTotal !== undefined) {
-          const badge = document.getElementById('nav-tuesday-badge');
-          if (badge) badge.textContent = tueMeta.overallTotal;
-        }
-      })
-      .catch(() => null),
+    refreshDayBadges(),
   ]);
 }
 
@@ -1131,20 +1116,24 @@ async function transferStudentDay(studentId, day) {
 }
 
 async function refreshDayBadges() {
-  await Promise.all([
-    api('/api/students/scheduled-day?day=Monday')
-      .then((d) => {
-        const el = document.getElementById('nav-monday-badge');
-        if (el && d?.overallTotal !== undefined) el.textContent = d.overallTotal;
-      })
-      .catch(() => null),
-    api('/api/students/scheduled-day?day=Tuesday')
-      .then((d) => {
-        const el = document.getElementById('nav-tuesday-badge');
-        if (el && d?.overallTotal !== undefined) el.textContent = d.overallTotal;
-      })
-      .catch(() => null),
+  const [monData, tueData] = await Promise.all([
+    api('/api/students/scheduled-day?day=Monday').catch(() => null),
+    api('/api/students/scheduled-day?day=Tuesday').catch(() => null),
   ]);
+  const monCount = Number(monData?.overallTotal ?? 0);
+  const tueCount = Number(tueData?.overallTotal ?? 0);
+
+  const monNav = document.getElementById('nav-monday-badge');
+  if (monNav) monNav.textContent = monCount;
+  const tueNav = document.getElementById('nav-tuesday-badge');
+  if (tueNav) tueNav.textContent = tueCount;
+
+  const monSummary = document.getElementById('approved-monday-count');
+  if (monSummary) monSummary.textContent = monCount;
+  const tueSummary = document.getElementById('approved-tuesday-count');
+  if (tueSummary) tueSummary.textContent = tueCount;
+  const totalSummary = document.getElementById('approved-montue-total');
+  if (totalSummary) totalSummary.textContent = monCount + tueCount;
 }
 
 async function loadScheduledDay(day) {
@@ -1809,6 +1798,9 @@ document.addEventListener('DOMContentLoaded', () => {
     aSearchTimer = setTimeout(loadApprovedDated, 240);
   });
   document.getElementById('a-filter-district')?.addEventListener('change', loadApprovedDated);
+  document.querySelectorAll('[data-jump-view]').forEach((btn) => {
+    btn.addEventListener('click', () => switchView(btn.dataset.jumpView));
+  });
 
   let mondaySearchTimer = null;
   document.getElementById('monday-filter-search')?.addEventListener('input', () => {
