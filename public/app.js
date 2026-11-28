@@ -125,13 +125,42 @@ function applyRoleVisibility() {
 }
 
 async function checkSession() {
+  let savedUser = null;
   try {
-    const data = await api('/api/auth/me');
-    state.user = data.user;
+    savedUser = JSON.parse(localStorage.getItem('ihqa_saved_user') || 'null');
+  } catch (_) {}
+
+  if (savedUser && savedUser.id) {
+    state.user = savedUser;
     enterApp();
-  } catch {
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('app-shell').classList.add('hidden');
+  }
+
+  const verifyMe = () => api('/api/auth/me');
+  try {
+    let data;
+    try {
+      data = await verifyMe();
+    } catch (firstErr) {
+      if (firstErr.status === 401) throw firstErr;
+      await new Promise((r) => setTimeout(r, 600));
+      data = await verifyMe();
+    }
+    state.user = data.user;
+    try {
+      localStorage.setItem('ihqa_saved_user', JSON.stringify(data.user));
+    } catch (_) {}
+    if (!savedUser || !savedUser.id) {
+      enterApp();
+    }
+  } catch (err) {
+    if (err.status === 401 || !savedUser) {
+      state.user = null;
+      try {
+        localStorage.removeItem('ihqa_saved_user');
+      } catch (_) {}
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('app-shell').classList.add('hidden');
+    }
   }
 }
 
@@ -1936,6 +1965,9 @@ document.addEventListener('DOMContentLoaded', () => {
         data = await doLogin();
       }
       state.user = data.user;
+      try {
+        localStorage.setItem('ihqa_saved_user', JSON.stringify(data.user));
+      } catch (_) {}
       enterApp();
     } catch (err) {
       errEl.textContent = err.message;
@@ -1952,6 +1984,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.user = null;
     state.students = [];
     state.unuploadedCampuses = [];
+    try {
+      localStorage.removeItem('ihqa_saved_user');
+    } catch (_) {}
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     try {

@@ -15,7 +15,7 @@ module.exports = {
       : path.join(__dirname, '..', 'data', 'ihqa_call_management.sqlite')),
   sessionSecret: process.env.SESSION_SECRET || 'ihqa-kerala-2026-dev-session-secret-change-prod',
   sessionCookieName: 'ihqa_session',
-  sessionTtlMs: 12 * 60 * 60 * 1000, // 12 hours
+  sessionTtlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
   email: {
     provider: process.env.EMAIL_PROVIDER || 'dev-json', // 'smtp' | 'ses' | 'dev-json'
     host: process.env.SMTP_HOST || '',
