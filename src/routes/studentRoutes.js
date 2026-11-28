@@ -17,7 +17,6 @@ const { initiateClickToCall } = require('../services/telephonyService');
 const { triggerThreeAttemptEmail } = require('../services/emailService');
 const { logAudit } = require('../services/auditService');
 const { reportToCsv, reportToExcelXml } = require('../services/reportService');
-const PDFDocument = require('pdfkit');
 
 const router = express.Router();
 
@@ -215,6 +214,12 @@ router.get('/scheduled-day/export', (req, res) => {
 
 // ── Scheduled-day PDF export (A4) ────────────────────────────────────────────
 router.get('/scheduled-day/pdf', (req, res) => {
+  let PDFDocument;
+  try {
+    PDFDocument = require('pdfkit');
+  } catch (e) {
+    return res.status(500).json({ error: 'PDF generation not available on this server.' });
+  }
   const db = getDb();
   const { day = '', search = '', district = '', staffId = '' } = req.query;
   if (!['Monday', 'Tuesday'].includes(day)) {
