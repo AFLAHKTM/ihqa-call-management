@@ -26,7 +26,9 @@ async function api(url, options = {}) {
     data = { raw: text };
   }
   if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
+    const err = new Error(data.error || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
@@ -1551,20 +1553,47 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('login-error');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const origBtnText = submitBtn ? submitBtn.textContent : '';
     errEl.classList.add('hidden');
-    try {
-      const data = await api('/api/auth/login', {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
+    }
+
+    const payload = {
+      username: document.getElementById('login-username').value,
+      password: document.getElementById('login-password').value,
+    };
+
+    const doLogin = () =>
+      api('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({
-          username: document.getElementById('login-username').value,
-          password: document.getElementById('login-password').value,
-        }),
+        body: JSON.stringify(payload),
       });
+
+    try {
+      let data;
+      try {
+        data = await doLogin();
+      } catch (firstErr) {
+        // Retry once on transient cold-start / network error (not invalid credentials)
+        if (firstErr.status === 400 || firstErr.status === 401) {
+          throw firstErr;
+        }
+        await new Promise((r) => setTimeout(r, 500));
+        data = await doLogin();
+      }
       state.user = data.user;
       enterApp();
     } catch (err) {
       errEl.textContent = err.message;
       errEl.classList.remove('hidden');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origBtnText || 'Sign In';
+      }
     }
   });
 

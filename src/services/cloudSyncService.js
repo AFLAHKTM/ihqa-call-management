@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
+const crypto = require('node:crypto');
 const config = require('../config');
 const { getDb, closeDb, initDatabase } = require('../db/database');
 
@@ -17,7 +18,8 @@ const LOCAL_SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', '..', 'firebase-se
 let localVersion = 0;
 let lastCheckAt = 0;
 let syncQueue = Promise.resolve();
-let rtdbInstance = null;
+let cachedAccessToken = null;
+let cachedTokenExpiresAt = 0;
 
 function withSyncLock(fn) {
   const next = syncQueue.then(fn, fn);
@@ -66,22 +68,49 @@ function isFirebaseConfigured() {
   }
 }
 
-function getRealtimeDb() {
-  if (rtdbInstance) return rtdbInstance;
-  const serviceAccount = getFirebaseServiceAccount();
-  if (!serviceAccount) return null;
-
-  const { initializeApp, getApps, cert } = require('firebase-admin/app');
-  const { getDatabase } = require('firebase-admin/database');
-  const databaseURL = process.env.FIREBASE_DATABASE_URL || DEFAULT_FIREBASE_DATABASE_URL;
-  if (getApps().length === 0) {
-    initializeApp({
-      credential: cert(serviceAccount),
-      databaseURL,
-    });
+async function getFirebaseAccessToken() {
+  const now = Date.now();
+  if (cachedAccessToken && now < cachedTokenExpiresAt) {
+    return cachedAccessToken;
   }
-  rtdbInstance = getDatabase();
-  return rtdbInstance;
+
+  const sa = getFirebaseServiceAccount();
+  if (!sa) return null;
+
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const claim = Buffer.from(
+    JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat,
+      exp,
+    })
+  ).toString('base64url');
+
+  const unsigned = `${header}.${claim}`;
+  const signature = crypto.createSign('RSA-SHA256').update(unsigned).sign(sa.private_key, 'base64url');
+  const assertion = `${unsigned}.${signature}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(assertion)}`,
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!res.ok) {
+    throw new Error(`Firebase OAuth token failed: ${res.status}`);
+  }
+  const data = await res.json();
+  cachedAccessToken = data.access_token;
+  cachedTokenExpiresAt = Date.now() + Math.max(60, Number(data.expires_in || 3600) - 120) * 1000;
+  return cachedAccessToken;
+}
+
+function getFirebaseDatabaseUrl() {
+  return (process.env.FIREBASE_DATABASE_URL || DEFAULT_FIREBASE_DATABASE_URL).replace(/\/+$/, '');
 }
 
 function isSyncEnabled() {
@@ -112,7 +141,7 @@ async function fetchSupabaseSnapshot() {
     {
       method: 'GET',
       headers: supabaseHeaders(),
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(5000),
     }
   );
   if (!res.ok) {
@@ -123,17 +152,24 @@ async function fetchSupabaseSnapshot() {
 }
 
 async function fetchRemoteMeta() {
-  const rtdb = getRealtimeDb();
-  if (rtdb) {
-    const snap = await rtdb.ref(`${RTDB_NODE_PATH}/version`).get();
-    if (!snap.exists()) return null;
-    return { version: snap.val() };
+  if (isFirebaseConfigured()) {
+    const token = await getFirebaseAccessToken();
+    const res = await fetch(
+      `${getFirebaseDatabaseUrl()}/${RTDB_NODE_PATH}/version.json?access_token=${encodeURIComponent(token)}`,
+      { method: 'GET', signal: AbortSignal.timeout(2500) }
+    );
+    if (!res.ok) {
+      throw new Error(`Firebase meta check failed: ${res.status}`);
+    }
+    const version = await res.json();
+    if (version === null || version === undefined) return null;
+    return { version };
   }
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state?id=eq.main&select=version`, {
     method: 'GET',
     headers: supabaseHeaders(),
-    signal: AbortSignal.timeout(4000),
+    signal: AbortSignal.timeout(3000),
   });
   if (!res.ok) {
     throw new Error(`Supabase meta check failed: ${res.status}`);
@@ -143,17 +179,23 @@ async function fetchRemoteMeta() {
 }
 
 async function fetchRemoteSnapshot() {
-  const rtdb = getRealtimeDb();
-  if (rtdb) {
-    const snap = await rtdb.ref(RTDB_NODE_PATH).get();
-    if (!snap.exists()) return null;
-    return snap.val() || null;
+  if (isFirebaseConfigured()) {
+    const token = await getFirebaseAccessToken();
+    const res = await fetch(
+      `${getFirebaseDatabaseUrl()}/${RTDB_NODE_PATH}.json?access_token=${encodeURIComponent(token)}`,
+      { method: 'GET', signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) {
+      throw new Error(`Firebase snapshot pull failed: ${res.status}`);
+    }
+    const data = await res.json();
+    return data || null;
   }
 
   return fetchSupabaseSnapshot();
 }
 
-async function pullIfNewer(force = false, minAgeMs = 15000) {
+async function pullIfNewer(force = false, minAgeMs = 30000) {
   if (!isSyncEnabled()) return { pulled: false, disabled: true };
 
   const now = Date.now();
@@ -233,9 +275,20 @@ async function pushSnapshot(updatedBy = 'system') {
       updated_by: String(updatedBy).slice(0, 100),
     };
 
-    const rtdb = getRealtimeDb();
-    if (rtdb) {
-      await rtdb.ref(RTDB_NODE_PATH).set(payload);
+    if (isFirebaseConfigured()) {
+      const token = await getFirebaseAccessToken();
+      const res = await fetch(
+        `${getFirebaseDatabaseUrl()}/${RTDB_NODE_PATH}.json?access_token=${encodeURIComponent(token)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      if (!res.ok) {
+        throw new Error(`Firebase push failed: ${res.status}`);
+      }
     } else {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {
         method: 'POST',
@@ -246,7 +299,7 @@ async function pushSnapshot(updatedBy = 'system') {
           id: 'main',
           ...payload,
         }),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (!res.ok) {
@@ -278,7 +331,6 @@ async function initCloudSync() {
 module.exports = {
   isSyncEnabled,
   isFirebaseConfigured,
-  getRealtimeDb,
   fetchSupabaseSnapshot,
   pullIfNewer,
   pushSnapshot,
