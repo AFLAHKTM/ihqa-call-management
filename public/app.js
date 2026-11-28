@@ -1077,10 +1077,10 @@ function renderApprovedDated(rows) {
           <span class="badge badge-success">✅ Attended</span>
         </td>
         <td data-label="Transfer to Monday or Tuesday">
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <div class="day-transfer-btns ${isMon || isTue ? 'is-scheduled' : ''}">
             ${
               isMon || isTue
-                ? `<span class="badge badge-success">✓ ${isMon ? 'Monday' : 'Tuesday'}</span>
+                ? `<span class="day-transfer-badge">✓ ${isMon ? 'Monday' : 'Tuesday'}</span>
                    <button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="">Undo</button>`
                 : `<button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="Monday">Transfer to Monday</button>
                    <button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="Tuesday">Transfer to Tuesday</button>`
@@ -1229,7 +1229,7 @@ function renderScheduledDay(day, rows) {
           <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
         </td>
         <td data-label="Actions">
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div class="day-transfer-btns">
             <button type="button" class="btn btn-sm btn-outline btn-move-day" data-id="${s.id}" data-day="${otherDay}">Move to ${otherDay}</button>
             <button type="button" class="btn btn-sm btn-outline btn-move-day" data-id="${s.id}" data-day="">Remove</button>
           </div>
