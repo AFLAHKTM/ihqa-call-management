@@ -22,7 +22,13 @@ function createApp() {
   // Prevent caching of sensitive API responses & sync shared cloud database
   app.use('/api', async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.path === '/health') return next();
+    if (
+      req.path === '/health' ||
+      req.path.startsWith('/auth/') ||
+      req.path.startsWith('/notifications')
+    ) {
+      return next();
+    }
 
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
     try {

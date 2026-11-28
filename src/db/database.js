@@ -232,6 +232,7 @@ function initDatabase(customPath) {
   }
   const db = new DatabaseSync(targetPath);
   try {
+    db.exec('PRAGMA busy_timeout = 5000;');
     db.exec('PRAGMA journal_mode = WAL;');
   } catch (_) {
     // Fallback gracefully on ephemeral/serverless filesystems

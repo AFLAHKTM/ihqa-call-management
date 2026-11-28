@@ -11,7 +11,13 @@ const SYNC_SECRET = process.env.IHQA_SYNC_KEY || 'ihqa-kerala-sync-2026-secret';
 
 let localVersion = 0;
 let lastCheckAt = 0;
-let syncInFlight = null;
+let syncQueue = Promise.resolve();
+
+function withSyncLock(fn) {
+  const next = syncQueue.then(fn, fn);
+  syncQueue = next.catch(() => {});
+  return next;
+}
 
 function isSyncEnabled() {
   if (
@@ -39,9 +45,10 @@ async function fetchRemoteMeta() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state?id=eq.main&select=version`, {
     method: 'GET',
     headers: supabaseHeaders(),
+    signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) {
-    throw new Error(`Supabase meta check failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Supabase meta check failed: ${res.status}`);
   }
   const rows = await res.json();
   return rows[0] || null;
@@ -53,16 +60,17 @@ async function fetchRemoteSnapshot() {
     {
       method: 'GET',
       headers: supabaseHeaders(),
+      signal: AbortSignal.timeout(6000),
     }
   );
   if (!res.ok) {
-    throw new Error(`Supabase snapshot pull failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Supabase snapshot pull failed: ${res.status}`);
   }
   const rows = await res.json();
   return rows[0] || null;
 }
 
-async function pullIfNewer(force = false, minAgeMs = 10000) {
+async function pullIfNewer(force = false, minAgeMs = 15000) {
   if (!isSyncEnabled()) return { pulled: false, disabled: true };
 
   const now = Date.now();
@@ -72,83 +80,93 @@ async function pullIfNewer(force = false, minAgeMs = 10000) {
   if (force && now - lastCheckAt < 3000) {
     return { pulled: false, throttled: true };
   }
-  if (syncInFlight) return syncInFlight;
 
-  syncInFlight = (async () => {
-    try {
-      lastCheckAt = Date.now();
-      const meta = await fetchRemoteMeta();
-      if (!meta) {
-        return { pulled: false, emptyRemote: true };
-      }
-      const remoteVersion = Number(meta.version || 0);
-      if (remoteVersion <= localVersion && fs.existsSync(config.dbPath)) {
-        return { pulled: false, upToDate: true, version: localVersion };
-      }
-
-      const full = await fetchRemoteSnapshot();
-      if (!full || !full.db_gzip_base64) {
-        return { pulled: false, emptyRemote: true };
-      }
-
-      const gzBuffer = Buffer.from(full.db_gzip_base64, 'base64');
-      const dbBuffer = zlib.gunzipSync(gzBuffer);
-
-      closeDb();
-      for (const suffix of ['-wal', '-shm']) {
-        const walPath = `${config.dbPath}${suffix}`;
-        if (fs.existsSync(walPath)) {
-          try {
-            fs.unlinkSync(walPath);
-          } catch (_) {}
-        }
-      }
-      fs.writeFileSync(config.dbPath, dbBuffer);
-      initDatabase(config.dbPath);
-
-      localVersion = Number(full.version || remoteVersion);
-      return { pulled: true, version: localVersion };
-    } finally {
-      syncInFlight = null;
+  return withSyncLock(async () => {
+    const innerNow = Date.now();
+    if (!force && innerNow - lastCheckAt < minAgeMs) {
+      return { pulled: false, throttled: true };
     }
-  })();
+    if (force && innerNow - lastCheckAt < 3000) {
+      return { pulled: false, throttled: true };
+    }
 
-  return syncInFlight;
+    lastCheckAt = innerNow;
+    const meta = await fetchRemoteMeta();
+    if (!meta) {
+      return { pulled: false, emptyRemote: true };
+    }
+    const remoteVersion = Number(meta.version || 0);
+    if (remoteVersion <= localVersion && fs.existsSync(config.dbPath)) {
+      return { pulled: false, upToDate: true, version: localVersion };
+    }
+
+    const full = await fetchRemoteSnapshot();
+    if (!full || !full.db_gzip_base64) {
+      return { pulled: false, emptyRemote: true };
+    }
+
+    const gzBuffer = Buffer.from(full.db_gzip_base64, 'base64');
+    const dbBuffer = zlib.gunzipSync(gzBuffer);
+    if (!dbBuffer || dbBuffer.length < 4096) {
+      throw new Error('Invalid remote snapshot buffer');
+    }
+
+    const tmpIncoming = `${config.dbPath}.incoming`;
+    fs.writeFileSync(tmpIncoming, dbBuffer);
+
+    closeDb();
+    for (const suffix of ['-wal', '-shm']) {
+      const walPath = `${config.dbPath}${suffix}`;
+      if (fs.existsSync(walPath)) {
+        try {
+          fs.unlinkSync(walPath);
+        } catch (_) {}
+      }
+    }
+    fs.renameSync(tmpIncoming, config.dbPath);
+    initDatabase(config.dbPath);
+
+    localVersion = Number(full.version || remoteVersion);
+    return { pulled: true, version: localVersion };
+  });
 }
 
 async function pushSnapshot(updatedBy = 'system') {
   if (!isSyncEnabled()) return { pushed: false, disabled: true };
 
-  const db = getDb();
-  try {
-    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
-  } catch (_) {}
+  return withSyncLock(async () => {
+    const db = getDb();
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    } catch (_) {}
 
-  const rawBuffer = fs.readFileSync(config.dbPath);
-  const gzBase64 = zlib.gzipSync(rawBuffer, { level: 1 }).toString('base64');
-  const nextVersion = Math.max(localVersion + 1, Date.now());
+    const rawBuffer = fs.readFileSync(config.dbPath);
+    const gzBase64 = zlib.gzipSync(rawBuffer, { level: 1 }).toString('base64');
+    const nextVersion = Math.max(localVersion + 1, Date.now());
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {
-    method: 'POST',
-    headers: supabaseHeaders({
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    }),
-    body: JSON.stringify({
-      id: 'main',
-      version: nextVersion,
-      db_gzip_base64: gzBase64,
-      updated_at: new Date().toISOString(),
-      updated_by: String(updatedBy).slice(0, 100),
-    }),
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {
+      method: 'POST',
+      headers: supabaseHeaders({
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      }),
+      body: JSON.stringify({
+        id: 'main',
+        version: nextVersion,
+        db_gzip_base64: gzBase64,
+        updated_at: new Date().toISOString(),
+        updated_by: String(updatedBy).slice(0, 100),
+      }),
+      signal: AbortSignal.timeout(6000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Supabase push failed: ${res.status}`);
+    }
+
+    localVersion = nextVersion;
+    lastCheckAt = Date.now();
+    return { pushed: true, version: localVersion };
   });
-
-  if (!res.ok) {
-    throw new Error(`Supabase push failed: ${res.status} ${await res.text()}`);
-  }
-
-  localVersion = nextVersion;
-  lastCheckAt = Date.now();
-  return { pushed: true, version: localVersion };
 }
 
 async function initCloudSync() {
