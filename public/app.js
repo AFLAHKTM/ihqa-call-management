@@ -155,6 +155,7 @@ async function checkSession() {
   } catch (err) {
     if (err.status === 401 || !savedUser) {
       state.user = null;
+      document.documentElement.classList.remove('has-session');
       try {
         localStorage.removeItem('ihqa_saved_user');
       } catch (_) {}
@@ -370,8 +371,10 @@ async function loadDashboardAndQueue() {
 
   const tbody = document.getElementById('students-tbody');
   const queueBadge = document.getElementById('queue-count-badge');
+  const refreshBtn = document.getElementById('refresh-all-btn');
+  if (refreshBtn) refreshBtn.textContent = 'Refreshing...';
   if (!hydrated && tbody && !state.students.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Loading records...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Refreshing...</td></tr>';
   }
   if (!hydrated && queueBadge && !state.students.length) {
     queueBadge.textContent = '...';
@@ -407,6 +410,8 @@ async function loadDashboardAndQueue() {
     if (!hydrated && queueBadge && !state.students.length) {
       queueBadge.textContent = '0';
     }
+  } finally {
+    if (refreshBtn) refreshBtn.textContent = 'Refresh';
   }
 }
 
@@ -1965,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data = await doLogin();
       }
       state.user = data.user;
+      document.documentElement.classList.add('has-session');
       try {
         localStorage.setItem('ihqa_saved_user', JSON.stringify(data.user));
       } catch (_) {}
@@ -1984,6 +1990,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.user = null;
     state.students = [];
     state.unuploadedCampuses = [];
+    document.documentElement.classList.remove('has-session');
     try {
       localStorage.removeItem('ihqa_saved_user');
     } catch (_) {}
