@@ -16,6 +16,7 @@ const {
 const { initiateClickToCall } = require('../services/telephonyService');
 const { triggerThreeAttemptEmail } = require('../services/emailService');
 const { logAudit } = require('../services/auditService');
+const { reportToCsv, reportToExcelXml } = require('../services/reportService');
 
 const router = express.Router();
 
@@ -122,6 +123,93 @@ router.get('/approved-dated', (req, res) => {
     districts,
     staffBreakdown,
   });
+});
+
+// ── Scheduled-day export (CSV / Excel) ───────────────────────────────────────
+router.get('/scheduled-day/export', (req, res) => {
+  const db = getDb();
+  const { day = '', format = 'csv', search = '', district = '', staffId = '' } = req.query;
+  if (!['Monday', 'Tuesday'].includes(day)) {
+    return res.status(400).json({ error: 'day must be Monday or Tuesday' });
+  }
+
+  const where = ['s.scheduled_call_day = ?'];
+  const params = [day];
+
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(req.user.id);
+  } else if (staffId) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(Number(staffId));
+  }
+
+  if (search) {
+    const q = `%${search.trim()}%`;
+    where.push(
+      '(s.institution_name LIKE ? OR s.student_name LIKE ? OR s.district LIKE ? OR s.coordinator_name LIKE ? OR s.coordinator_mobile LIKE ?)'
+    );
+    params.push(q, q, q, q, q);
+  }
+  if (district) {
+    where.push('s.district = ?');
+    params.push(district);
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT s.registration_number, s.institution_name, i.place AS institution_place,
+              s.district, s.coordinator_name, s.coordinator_mobile, s.coordinator_email,
+              s.exam_category, s.student_name, u.full_name AS assigned_staff_name,
+              s.last_called_at, s.scheduled_call_day
+       FROM students s
+       LEFT JOIN users u ON u.id = s.assigned_staff_id
+       LEFT JOIN institutions i ON i.id = s.institution_id
+       WHERE ${where.join(' AND ')}`
+    )
+    .all(...params);
+
+  const columns = [
+    '#', 'Reg No', 'Institution', 'Place', 'District',
+    'Supervisor', 'Phone', 'Email', 'Category', 'Winner',
+    'Handled By', 'Approved Date', 'Scheduled Day',
+  ];
+
+  const reportRows = rows.map((s, idx) => {
+    const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+    const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
+    return [
+      displayNo,
+      s.registration_number || '',
+      s.institution_name || '',
+      s.institution_place || '',
+      s.district || '',
+      s.coordinator_name || '',
+      s.coordinator_mobile || '',
+      s.coordinator_email || '',
+      s.exam_category || '',
+      s.student_name || '',
+      s.assigned_staff_name || '',
+      s.last_called_at || '',
+      s.scheduled_call_day || '',
+    ];
+  });
+
+  const report = { columns, rows: reportRows };
+  const safeName = `Call_for_${day}`;
+
+  if (format === 'excel') {
+    const xml = reportToExcelXml(report);
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}.xls"`);
+    return res.send(xml);
+  }
+
+  // default CSV
+  const csv = reportToCsv(report);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.csv"`);
+  return res.send(csv);
 });
 
 router.get('/scheduled-day', (req, res) => {

@@ -1595,6 +1595,36 @@ async function loadScheduledDay(day) {
   const totalLabel = document.getElementById(`${key}-total-label`);
   if (totalLabel) totalLabel.textContent = `${data.total} scheduled`;
 
+  // ── Export buttons ──────────────────────────────────────────────────────────
+  const exportBar = document.getElementById(`${key}-export-bar`);
+  if (exportBar) {
+    exportBar.innerHTML = `
+      <span style="font-size:0.82rem;color:#6b7280;font-weight:600;margin-right:4px;">Export:</span>
+      <button type="button" class="btn btn-sm btn-outline" id="${key}-export-csv" title="Download CSV">⬇ CSV</button>
+      <button type="button" class="btn btn-sm btn-outline" id="${key}-export-excel" title="Download Excel">⬇ Excel</button>
+      <button type="button" class="btn btn-sm btn-outline" id="${key}-export-print" title="Print / Save as PDF">🖨 Print / PDF</button>
+    `;
+    const buildExportParams = () => {
+      const p = new URLSearchParams({ day });
+      const s2 = document.getElementById(`${key}-filter-search`)?.value.trim() || '';
+      const d2 = document.getElementById(`${key}-filter-district`)?.value || '';
+      const sf = state[stateKey] || '';
+      if (s2) p.set('search', s2);
+      if (d2) p.set('district', d2);
+      if (sf) p.set('staffId', sf);
+      return p.toString();
+    };
+    document.getElementById(`${key}-export-csv`).addEventListener('click', () => {
+      window.open(`/api/students/scheduled-day/export?${buildExportParams()}&format=csv`);
+    });
+    document.getElementById(`${key}-export-excel`).addEventListener('click', () => {
+      window.open(`/api/students/scheduled-day/export?${buildExportParams()}&format=excel`);
+    });
+    document.getElementById(`${key}-export-print`).addEventListener('click', () => {
+      window.print();
+    });
+  }
+
   state[`${key}Rows`] = data.rows || [];
   renderScheduledDay(day, state[`${key}Rows`]);
 }
