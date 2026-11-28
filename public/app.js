@@ -483,20 +483,30 @@ function renderStudentsTable(rows) {
         .split(',')
         .filter(Boolean)
         .map(Number);
-      btn.disabled = true;
-      btn.textContent = '...';
+      const prevStudents = (state.students || []).map((s) => ({ ...s }));
+      const idSet = new Set(ids);
+      state.students = (state.students || []).map((s) =>
+        idSet.has(Number(s.id))
+          ? {
+              ...s,
+              communication_status: Number(s.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call',
+              last_call_outcome: null,
+            }
+          : s
+      );
+      renderStudentsTable();
+      showToast('↩ Call reverted to Pending');
+
       try {
         await api('/api/students/undo-calls', {
           method: 'POST',
           body: JSON.stringify({ studentIds: ids }),
         });
-        showToast('↩ Call reverted to Pending');
-        await loadDashboardAndQueue();
+        loadDashboardAndQueue();
       } catch (err) {
+        state.students = prevStudents;
+        renderStudentsTable();
         showToast(err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '↩ Undo';
       }
     });
   });
@@ -550,6 +560,27 @@ function openUnattendPopup({ studentIds = [], campusId = null, contactType = 'co
 }
 
 async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coordinator', callSessionId = null) {
+  const prevStudents = (state.students || []).map((s) => ({ ...s }));
+  const idSet = new Set(studentIds.map(Number));
+  const isAttended = callOutcome === 'Successfully Contacted';
+
+  // Optimistic instant UI update (<2ms)
+  state.students = (state.students || []).map((s) => {
+    if (!idSet.has(Number(s.id))) return s;
+    const nextAttempts = isAttended ? s.valid_attempt_count : Number(s.valid_attempt_count || 0) + 1;
+    return {
+      ...s,
+      communication_status: isAttended ? 'Successfully Contacted' : 'Not Connected / Retrying',
+      last_call_outcome: callOutcome,
+      valid_attempt_count: nextAttempts,
+      last_called_at: new Date().toISOString(),
+    };
+  });
+  renderStudentsTable();
+  if (isAttended) {
+    showToast('✅ Saved: Attended');
+  }
+
   try {
     const results = await Promise.all(
       studentIds.map((sid, idx) =>
@@ -559,7 +590,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
             callSessionId: idx === 0 ? callSessionId : null,
             contactType,
             callOutcome,
-            remarks: callOutcome === 'Successfully Contacted' ? 'Call Attended' : `Unattended (${callOutcome})`,
+            remarks: isAttended ? 'Call Attended' : `Unattended (${callOutcome})`,
             isValidAttempt: true,
           }),
         })
@@ -576,20 +607,22 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
         }
       }
     }
-    if (callOutcome === 'Successfully Contacted') {
-      showToast('✅ Saved: Attended');
-    } else if (emailSent) {
-      showToast(`Saved: ${callOutcome} & Auto-email sent to institution`);
-    } else if (emailSimulated) {
-      showToast(`Saved: ${callOutcome} (⚠️ Dev Mode: configure SMTP in Settings for real email)`);
-    } else {
-      showToast(`Saved: ${callOutcome}`);
+    if (!isAttended) {
+      if (emailSent) {
+        showToast(`Saved: ${callOutcome} & Auto-email sent to institution`);
+      } else if (emailSimulated) {
+        showToast(`Saved: ${callOutcome} (⚠️ Dev Mode: configure SMTP in Settings for real email)`);
+      } else {
+        showToast(`Saved: ${callOutcome}`);
+      }
     }
-    await loadDashboardAndQueue();
+    loadDashboardAndQueue();
     if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
-      await openCallingDesk(state.activeStudentId);
+      openCallingDesk(state.activeStudentId);
     }
   } catch (err) {
+    state.students = prevStudents;
+    renderStudentsTable();
     showToast(err.message);
   }
 }
@@ -1469,17 +1502,27 @@ function renderUnuploadedCampuses(rows) {
 
   document.querySelectorAll('.u-undo-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      btn.textContent = '...';
+      const id = Number(btn.dataset.id);
+      const prevCampuses = (state.unuploadedCampuses || []).map((c) => ({ ...c }));
+      state.unuploadedCampuses = (state.unuploadedCampuses || []).map((c) =>
+        Number(c.id) === id
+          ? {
+              ...c,
+              communication_status: Number(c.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call',
+              last_call_outcome: null,
+            }
+          : c
+      );
+      renderUnuploadedCampuses(state.unuploadedCampuses);
+      showToast('↩ Campus call reverted to Pending');
+
       try {
-        await api(`/api/campuses/${btn.dataset.id}/calls/undo`, { method: 'POST' });
-        showToast('↩ Campus call reverted to Pending');
-        await loadUnuploadedCampuses();
+        await api(`/api/campuses/${id}/calls/undo`, { method: 'POST' });
+        loadUnuploadedCampuses();
       } catch (err) {
+        state.unuploadedCampuses = prevCampuses;
+        renderUnuploadedCampuses(state.unuploadedCampuses);
         showToast(err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '↩ Undo';
       }
     });
   });
@@ -1488,18 +1531,23 @@ function renderUnuploadedCampuses(rows) {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.id);
       const nextSub = btn.dataset.sub;
-      btn.disabled = true;
+      const prevCampuses = (state.unuploadedCampuses || []).map((c) => ({ ...c }));
+      state.unuploadedCampuses = (state.unuploadedCampuses || []).map((c) =>
+        Number(c.id) === id ? { ...c, submission_status: nextSub } : c
+      );
+      renderUnuploadedCampuses(state.unuploadedCampuses);
+      showToast(`Updated: ${nextSub}`);
+
       try {
         await api(`/api/campuses/${id}/submission-status`, {
           method: 'PATCH',
           body: JSON.stringify({ submissionStatus: nextSub }),
         });
-        showToast(`Updated: ${nextSub}`);
-        await loadUnuploadedCampuses();
+        loadUnuploadedCampuses();
       } catch (err) {
+        state.unuploadedCampuses = prevCampuses;
+        renderUnuploadedCampuses(state.unuploadedCampuses);
         showToast(err.message);
-      } finally {
-        btn.disabled = false;
       }
     });
   });
@@ -1522,20 +1570,39 @@ function renderUnuploadedCampuses(rows) {
 }
 
 async function quickSaveCampusCall(campusId, callOutcome) {
+  const prevCampuses = (state.unuploadedCampuses || []).map((c) => ({ ...c }));
+  const isAttended = callOutcome === 'Successfully Contacted';
+  state.unuploadedCampuses = (state.unuploadedCampuses || []).map((c) =>
+    Number(c.id) === Number(campusId)
+      ? {
+          ...c,
+          communication_status: isAttended ? 'Successfully Contacted' : 'Not Connected / Retrying',
+          last_call_outcome: callOutcome,
+          valid_attempt_count: isAttended ? c.valid_attempt_count : Number(c.valid_attempt_count || 0) + 1,
+        }
+      : c
+  );
+  renderUnuploadedCampuses(state.unuploadedCampuses);
+  if (isAttended) {
+    showToast('✅ Saved: Attended');
+  }
+
   try {
     const res = await api(`/api/campuses/${campusId}/calls`, {
       method: 'POST',
       body: JSON.stringify({ callOutcome }),
     });
-    if (callOutcome === 'Successfully Contacted') {
-      showToast('✅ Saved: Attended');
-    } else if (res.emailResult?.sent && !res.emailResult?.simulated) {
-      showToast(`Saved: ${callOutcome} & Auto-email sent to supervisor`);
-    } else {
-      showToast(`Saved: ${callOutcome}`);
+    if (!isAttended) {
+      if (res.emailResult?.sent && !res.emailResult?.simulated) {
+        showToast(`Saved: ${callOutcome} & Auto-email sent to supervisor`);
+      } else {
+        showToast(`Saved: ${callOutcome}`);
+      }
     }
-    await loadUnuploadedCampuses();
+    loadUnuploadedCampuses();
   } catch (err) {
+    state.unuploadedCampuses = prevCampuses;
+    renderUnuploadedCampuses(state.unuploadedCampuses);
     showToast(err.message);
   }
 }
