@@ -102,6 +102,23 @@ async function checkSession() {
   }
 }
 
+function startRealtimeSync() {
+  if (state.realtimeTimer) return;
+  state.realtimeTimer = setInterval(() => {
+    if (!state.user || document.hidden) return;
+    const anyModalOpen = Array.from(document.querySelectorAll('.modal, .drawer')).some(
+      (el) => !el.classList.contains('hidden')
+    );
+    if (anyModalOpen) return;
+    const v = state.activeView || 'dashboard';
+    if (v === 'dashboard') loadDashboardAndQueue();
+    else if (v === 'unuploaded') loadUnuploadedCampuses();
+    else if (v === 'approved-dated') loadApprovedDated();
+    else if (v === 'call-monday') loadScheduledDay('Monday');
+    else if (v === 'call-tuesday') loadScheduledDay('Tuesday');
+  }, 15000);
+}
+
 async function enterApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
@@ -114,6 +131,7 @@ async function enterApp() {
     greetingEl.classList.remove('hidden');
   }
   applyRoleVisibility();
+  startRealtimeSync();
   if (['kashif', 'salman', 'suhail'].includes(state.user.username)) {
     switchView('unuploaded');
     await loadNotifications();
@@ -1062,6 +1080,7 @@ async function loadSettingsAndAudit() {
 }
 
 function switchView(viewName) {
+  state.activeView = viewName;
   document.querySelectorAll('.view-section').forEach((v) => v.classList.add('hidden'));
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
   document.getElementById(`view-${viewName}`).classList.remove('hidden');
@@ -1092,18 +1111,7 @@ function switchView(viewName) {
   if (viewName === 'settings') loadSettingsAndAudit();
 }
 
-async function loadApprovedDated() {
-  const search = document.getElementById('a-filter-search')?.value.trim() || '';
-  const district = document.getElementById('a-filter-district')?.value || '';
-  const staffId = state.approvedStaffId || '';
-
-  const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  if (district) params.set('district', district);
-  if (staffId) params.set('staffId', staffId);
-
-  const data = await api(`/api/students/approved-dated?${params.toString()}`);
-
+function applyApprovedDatedPayload(data, staffId) {
   const distSel = document.getElementById('a-filter-district');
   if (distSel && data.districts) {
     const prev = distSel.value;
@@ -1136,6 +1144,35 @@ async function loadApprovedDated() {
 
   state.approvedRows = data.rows || [];
   renderApprovedDated(state.approvedRows);
+}
+
+async function loadApprovedDated() {
+  const search = document.getElementById('a-filter-search')?.value.trim() || '';
+  const district = document.getElementById('a-filter-district')?.value || '';
+  const staffId = state.approvedStaffId || '';
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (district) params.set('district', district);
+  if (staffId) params.set('staffId', staffId);
+
+  const cacheKey = state.user?.id ? `ihqa_approved_cache_${state.user.id}` : null;
+  if (cacheKey && !params.toString() && !(state.approvedRows || []).length) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached?.rows) {
+        applyApprovedDatedPayload(cached, staffId);
+      }
+    } catch (_) {}
+  }
+
+  const data = await api(`/api/students/approved-dated?${params.toString()}`);
+  if (cacheKey && !params.toString()) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch (_) {}
+  }
+  applyApprovedDatedPayload(data, staffId);
 }
 
 function renderApprovedDated(rows) {
@@ -1877,15 +1914,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('f-quick-search').addEventListener('input', () => {
     clearTimeout(state.quickSearchTimer);
-    state.quickSearchTimer = setTimeout(() => loadDashboardAndQueue(), 220);
+    if (Array.isArray(state.allStudents) && state.allStudents.length) {
+      const q = document.getElementById('f-quick-search').value.trim().toLowerCase();
+      const filtered = q
+        ? state.allStudents.filter((s) =>
+            [s.institution_name, s.student_name, s.district, s.coordinator_name, s.coordinator_mobile, s.student_mobile]
+              .filter(Boolean)
+              .some((v) => String(v).toLowerCase().includes(q))
+          )
+        : state.allStudents;
+      state.students = filtered;
+      const qb = document.getElementById('queue-count-badge');
+      if (qb) qb.textContent = filtered.length;
+      renderStudentsTable(filtered);
+    }
+    state.quickSearchTimer = setTimeout(() => loadDashboardAndQueue(), 260);
   });
 
   document.querySelectorAll('.pill-filter').forEach((pill) => {
     pill.addEventListener('click', () => {
       document.querySelectorAll('.pill-filter').forEach((p) => p.classList.remove('active'));
       pill.classList.add('active');
-      document.getElementById('f-status').value = pill.dataset.quickStatus || '';
-      document.getElementById('f-attempts').value = pill.dataset.quickAttempts || '';
+      const statusVal = pill.dataset.quickStatus || '';
+      const attemptsVal = pill.dataset.quickAttempts || '';
+      document.getElementById('f-status').value = statusVal;
+      document.getElementById('f-attempts').value = attemptsVal;
+      if (Array.isArray(state.allStudents) && state.allStudents.length) {
+        const filtered = state.allStudents.filter((s) => {
+          if (attemptsVal && Number(s.valid_attempt_count || 0) < Number(attemptsVal)) return false;
+          if (!statusVal) return true;
+          if (statusVal === 'PENDING_ALL') {
+            return ['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status);
+          }
+          if (statusVal === 'UNATTENDED') {
+            return Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
+          }
+          if (statusVal === 'INVALID_NUMBER') {
+            return Number(s.invalid_number_flagged || 0) > 0;
+          }
+          return s.communication_status === statusVal;
+        });
+        state.students = filtered;
+        const qb = document.getElementById('queue-count-badge');
+        if (qb) qb.textContent = filtered.length;
+        renderStudentsTable(filtered);
+      }
       loadDashboardAndQueue();
     });
   });
