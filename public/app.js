@@ -1077,13 +1077,14 @@ function renderApprovedDated(rows) {
           <span class="badge badge-success">✅ Attended</span>
         </td>
         <td data-label="Transfer to Monday or Tuesday">
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button type="button" class="btn btn-sm ${isMon ? 'btn-primary' : 'btn-outline'} btn-transfer-day" data-id="${s.id}" data-day="Monday">
-              ${isMon ? '✓ Monday' : 'Transfer to Monday'}
-            </button>
-            <button type="button" class="btn btn-sm ${isTue ? 'btn-primary' : 'btn-outline'} btn-transfer-day" data-id="${s.id}" data-day="Tuesday">
-              ${isTue ? '✓ Tuesday' : 'Transfer to Tuesday'}
-            </button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${
+              isMon || isTue
+                ? `<span class="badge badge-success">✓ ${isMon ? 'Monday' : 'Tuesday'}</span>
+                   <button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="">Undo</button>`
+                : `<button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="Monday">Transfer to Monday</button>
+                   <button type="button" class="btn btn-sm btn-outline btn-transfer-day" data-id="${s.id}" data-day="Tuesday">Transfer to Tuesday</button>`
+            }
           </div>
         </td>
       </tr>`;
@@ -1092,7 +1093,7 @@ function renderApprovedDated(rows) {
 
   tbody.querySelectorAll('.btn-transfer-day').forEach((btn) => {
     btn.addEventListener('click', () => {
-      transferStudentDay(Number(btn.dataset.id), btn.dataset.day);
+      transferStudentDay(Number(btn.dataset.id), btn.dataset.day || null);
     });
   });
 }
