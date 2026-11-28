@@ -205,6 +205,7 @@ async function loadDashboardAndQueue() {
     try {
       const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
       if (cached?.summary && cached?.listData) {
+        state.allStudents = cached.listData.rows || [];
         applyDashboardPayload(cached.summary, cached.listData);
         hydrated = true;
       }
@@ -556,7 +557,15 @@ function renderStudentsTable(rows = state.students || []) {
           method: 'POST',
           body: JSON.stringify({ studentIds: ids }),
         });
-        loadDashboardAndQueue();
+        api('/api/dashboard/summary')
+          .then((s) => {
+            if (s?.stats) renderKpis(s.stats);
+            if (s?.navBadges) {
+              const aBadge = document.getElementById('nav-approved-badge');
+              if (aBadge) aBadge.textContent = s.navBadges.approvedTotal ?? 0;
+            }
+          })
+          .catch(() => null);
       } catch (err) {
         state.students = prevStudents;
         renderStudentsTable(state.students);
@@ -670,7 +679,15 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
         showToast(`Saved: ${callOutcome}`);
       }
     }
-    loadDashboardAndQueue();
+    api('/api/dashboard/summary')
+      .then((s) => {
+        if (s?.stats) renderKpis(s.stats);
+        if (s?.navBadges) {
+          const aBadge = document.getElementById('nav-approved-badge');
+          if (aBadge) aBadge.textContent = s.navBadges.approvedTotal ?? 0;
+        }
+      })
+      .catch(() => null);
     if (state.activeStudentId && studentIds.includes(state.activeStudentId) && !document.getElementById('calling-drawer').classList.contains('hidden')) {
       openCallingDesk(state.activeStudentId);
     }
@@ -1396,6 +1413,7 @@ async function loadUnuploadedCampuses() {
     try {
       const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
       if (cached?.rows) {
+        state.allUnuploadedCampuses = cached.rows || [];
         applyCampusesPayload(cached, staffId, status);
       }
     } catch (_) {}
