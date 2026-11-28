@@ -21,6 +21,17 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+function sortRowsByDisplayNumber(rows) {
+  const getNum = (r) => {
+    const m = String(r.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+    return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+  };
+  return rows.sort((a, b) => {
+    const diff = getNum(a) - getNum(b);
+    return diff !== 0 ? diff : Number(a.id) - Number(b.id);
+  });
+}
+
 router.get('/', (req, res) => {
   const result = listStudents(req.query, req.user, getDb());
   res.json(result);
@@ -57,20 +68,21 @@ router.get('/approved-dated', (req, res) => {
   }
 
   const whereSql = `WHERE ${where.join(' AND ')}`;
-  const rows = db
-    .prepare(
-      `SELECT s.*,
-              u.full_name AS assigned_staff_name,
-              u.username AS assigned_staff_username,
-              i.place AS institution_place,
-              i.winner_status AS institution_winner_status
-       FROM students s
-       JOIN users u ON u.id = s.assigned_staff_id
-       LEFT JOIN institutions i ON i.id = s.institution_id
-       ${whereSql}
-       ORDER BY COALESCE(s.last_called_at, s.updated_at) DESC, s.id DESC`
-    )
-    .all(...params);
+  const rows = sortRowsByDisplayNumber(
+    db
+      .prepare(
+        `SELECT s.*,
+                u.full_name AS assigned_staff_name,
+                u.username AS assigned_staff_username,
+                i.place AS institution_place,
+                i.winner_status AS institution_winner_status
+         FROM students s
+         JOIN users u ON u.id = s.assigned_staff_id
+         LEFT JOIN institutions i ON i.id = s.institution_id
+         ${whereSql}`
+      )
+      .all(...params)
+  );
 
   const baseWhere =
     req.user.role === ROLES.CALLING_STAFF
@@ -143,20 +155,21 @@ router.get('/scheduled-day', (req, res) => {
   }
 
   const whereSql = `WHERE ${where.join(' AND ')}`;
-  const rows = db
-    .prepare(
-      `SELECT s.*,
-              u.full_name AS assigned_staff_name,
-              u.username AS assigned_staff_username,
-              i.place AS institution_place,
-              i.winner_status AS institution_winner_status
-       FROM students s
-       LEFT JOIN users u ON u.id = s.assigned_staff_id
-       LEFT JOIN institutions i ON i.id = s.institution_id
-       ${whereSql}
-       ORDER BY COALESCE(s.last_called_at, s.updated_at) DESC, s.id DESC`
-    )
-    .all(...params);
+  const rows = sortRowsByDisplayNumber(
+    db
+      .prepare(
+        `SELECT s.*,
+                u.full_name AS assigned_staff_name,
+                u.username AS assigned_staff_username,
+                i.place AS institution_place,
+                i.winner_status AS institution_winner_status
+         FROM students s
+         LEFT JOIN users u ON u.id = s.assigned_staff_id
+         LEFT JOIN institutions i ON i.id = s.institution_id
+         ${whereSql}`
+      )
+      .all(...params)
+  );
 
   const baseWhere =
     req.user.role === ROLES.CALLING_STAFF
