@@ -227,14 +227,20 @@ function filterDashboardStudentsInMemory() {
       if (statusVal === 'PENDING_ALL') {
         if (!['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status)) return false;
       } else if (statusVal === 'UNATTENDED') {
-        if (!(Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status))) return false;
+        const isAttended = ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
+        if (isAttended) return false;
+        const isUnattended =
+          Number(s.valid_attempt_count || 0) > 0 ||
+          ['Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected', 'No Answer'].includes(s.last_call_outcome) ||
+          ['Not Connected / Retrying', 'Pending Second Call', 'Pending Third Call', 'Attempt 1 Completed', 'Attempt 2 Completed', 'Attempt 3 Completed'].includes(s.communication_status);
+        if (!isUnattended) return false;
       } else if (statusVal === 'Email Notification Sent') {
         if (!(s.communication_status === 'Email Notification Sent' || Number(s.email_notified_sequence || 0) > 0)) return false;
       } else if (statusVal === 'CALLS_MADE') {
         if (!(Number(s.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status))) return false;
-      } else if (statusVal === 'INVALID_NUMBER') {
-        if (!(Number(s.invalid_number_flagged || 0) > 0)) return false;
-      } else if (s.communication_status !== statusVal) {
+      } else if (statusVal === 'INVALID_NUMBER' || statusVal === 'Number Correction Required') {
+        if (!(Number(s.invalid_number_flagged || 0) > 0 || s.communication_status === 'Number Correction Required')) return false;
+      } else if (s.communication_status !== statusVal && s.last_call_outcome !== statusVal) {
         return false;
       }
     }
@@ -327,6 +333,17 @@ function applyDashboardPayload(summary, listData) {
   }
 
   renderKpis(summary.stats);
+  const curStatus = document.getElementById('f-status')?.value || '';
+  const curAttempts = document.getElementById('f-attempts')?.value || '';
+  document.querySelectorAll('#quick-status-pills .pill-filter').forEach((p) => {
+    const pStatus = p.dataset.quickStatus ?? '';
+    const pAttempts = p.dataset.quickAttempts ?? '';
+    if (curAttempts) {
+      p.classList.toggle('active', pAttempts === curAttempts);
+    } else {
+      p.classList.toggle('active', !pAttempts && pStatus === curStatus);
+    }
+  });
   renderStudentsTable(state.students);
 }
 
@@ -394,8 +411,10 @@ async function loadDashboardAndQueue() {
       ]);
     }
 
-    if (cacheKey && !params.toString()) {
+    if (!state.allStudents || !state.allStudents.length || (!params.get('callStatus') && !params.get('search') && !params.get('district'))) {
       state.allStudents = listData.rows || [];
+    }
+    if (cacheKey && !params.toString()) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify({ summary, listData }));
       } catch (_) {}
@@ -432,13 +451,23 @@ function populateFilterDropdowns(meta) {
   const statusSel = document.getElementById('f-status');
   const prevStatus = statusSel.value;
   statusSel.innerHTML = `<option value="">All Call / Comm. Statuses</option>
+    <optgroup label="Quick Filters">
+      <option value="PENDING_ALL">Pending Calls</option>
+      <option value="Successfully Contacted">Attended (Successfully Contacted)</option>
+      <option value="UNATTENDED">Unattended</option>
+      <option value="CALLS_MADE">Calls Made (1+ Attempts)</option>
+      <option value="Email Notification Sent">Auto-Emailed</option>
+      <option value="Number Correction Required">Wrong Phone Numbers</option>
+    </optgroup>
     <optgroup label="Communication Statuses">
       ${meta.communicationStatuses.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
     </optgroup>
     <optgroup label="Call Outcomes">
       ${meta.callOutcomes.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
     </optgroup>`;
-  statusSel.value = prevStatus;
+  if (prevStatus) {
+    statusSel.value = prevStatus;
+  }
 
   // Bulk assign & Modal dropdowns
   document.getElementById('bulk-staff-select').innerHTML = `<option value="">Unassign</option>${meta.staffList
@@ -480,7 +509,7 @@ function renderKpis(stats) {
     { label: 'Total Campuses', value: stats.totalStudentsAssigned, cls: '', filterStatus: '' },
     { label: 'Pending Calls', value: stats.followupPending, cls: 'warn', filterStatus: 'PENDING_ALL' },
     { label: 'Attended', value: stats.successfullyContacted, cls: 'success', filterStatus: 'Successfully Contacted' },
-    { label: 'Unattended', value: (stats.notReachable || 0) + (stats.noAnswer || 0), cls: 'warn', filterStatus: 'UNATTENDED' },
+    { label: 'Unattended', value: stats.unattended ?? ((stats.notReachable || 0) + (stats.noAnswer || 0)), cls: 'warn', filterStatus: 'UNATTENDED' },
     { label: 'Auto-Emailed', value: stats.emailNotificationsSent, cls: '', filterStatus: 'Email Notification Sent' },
     { label: 'Calls Made', value: stats.totalCallsAttempted, cls: '', filterStatus: 'CALLS_MADE' },
   ];
@@ -532,32 +561,7 @@ function renderKpis(stats) {
         c.classList.toggle('kpi-active', (c.dataset.kpiStatus ?? '') === targetStatus && targetStatus !== '');
       });
 
-      if (Array.isArray(state.allStudents) && state.allStudents.length) {
-        const filtered = state.allStudents.filter((s) => {
-          if (!targetStatus) return true;
-          if (targetStatus === 'PENDING_ALL') {
-            return ['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status);
-          }
-          if (targetStatus === 'Successfully Contacted') {
-            return ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
-          }
-          if (targetStatus === 'UNATTENDED') {
-            return Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
-          }
-          if (targetStatus === 'Email Notification Sent') {
-            return s.communication_status === 'Email Notification Sent' || Number(s.email_notified_sequence || 0) > 0;
-          }
-          if (targetStatus === 'CALLS_MADE') {
-            return Number(s.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
-          }
-          return s.communication_status === targetStatus;
-        });
-        state.students = filtered;
-        const qb = document.getElementById('queue-count-badge');
-        if (qb) qb.textContent = filtered.length;
-        renderStudentsTable(filtered);
-      }
-
+      filterDashboardStudentsInMemory();
       document.getElementById('students-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       loadDashboardAndQueue();
     });
@@ -2471,34 +2475,26 @@ document.addEventListener('DOMContentLoaded', () => {
     state.quickSearchTimer = setTimeout(() => loadDashboardAndQueue(), 260);
   });
 
-  document.querySelectorAll('.pill-filter').forEach((pill) => {
+  document.querySelectorAll('#quick-status-pills .pill-filter').forEach((pill) => {
     pill.addEventListener('click', () => {
-      document.querySelectorAll('.pill-filter').forEach((p) => p.classList.remove('active'));
+      document.querySelectorAll('#quick-status-pills .pill-filter').forEach((p) => p.classList.remove('active'));
       pill.classList.add('active');
       const statusVal = pill.dataset.quickStatus || '';
       const attemptsVal = pill.dataset.quickAttempts || '';
-      document.getElementById('f-status').value = statusVal;
-      document.getElementById('f-attempts').value = attemptsVal;
-      if (Array.isArray(state.allStudents) && state.allStudents.length) {
-        const filtered = state.allStudents.filter((s) => {
-          if (attemptsVal && Number(s.valid_attempt_count || 0) < Number(attemptsVal)) return false;
-          if (!statusVal) return true;
-          if (statusVal === 'PENDING_ALL') {
-            return ['Not Assigned', 'Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(s.communication_status);
-          }
-          if (statusVal === 'UNATTENDED') {
-            return Number(s.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(s.communication_status);
-          }
-          if (statusVal === 'INVALID_NUMBER') {
-            return Number(s.invalid_number_flagged || 0) > 0;
-          }
-          return s.communication_status === statusVal;
-        });
-        state.students = filtered;
-        const qb = document.getElementById('queue-count-badge');
-        if (qb) qb.textContent = filtered.length;
-        renderStudentsTable(filtered);
+      const fStatus = document.getElementById('f-status');
+      if (fStatus) {
+        if (statusVal && !Array.from(fStatus.options).some((o) => o.value === statusVal)) {
+          const opt = document.createElement('option');
+          opt.value = statusVal;
+          opt.textContent = statusVal;
+          fStatus.appendChild(opt);
+        }
+        fStatus.value = statusVal;
       }
+      const fAttempts = document.getElementById('f-attempts');
+      if (fAttempts) fAttempts.value = attemptsVal;
+
+      filterDashboardStudentsInMemory();
       loadDashboardAndQueue();
     });
   });

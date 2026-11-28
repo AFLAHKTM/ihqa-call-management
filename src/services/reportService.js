@@ -57,7 +57,8 @@ function getDashboardStats(filters = {}, user = null, db = getDb()) {
     .prepare(
       `SELECT COUNT(*) as c FROM students s
        ${whereClause ? `${whereClause} AND` : 'WHERE'}
-       s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected')`
+       s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected')
+       AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')`
     )
     .get(...params).c;
 
@@ -65,7 +66,21 @@ function getDashboardStats(filters = {}, user = null, db = getDb()) {
     .prepare(
       `SELECT COUNT(*) as c FROM students s
        ${whereClause ? `${whereClause} AND` : 'WHERE'}
-       s.last_call_outcome = 'No Answer'`
+       s.last_call_outcome = 'No Answer'
+       AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')`
+    )
+    .get(...params).c;
+
+  const unattendedCount = db
+    .prepare(
+      `SELECT COUNT(*) as c FROM students s
+       ${whereClause ? `${whereClause} AND` : 'WHERE'}
+       (
+         (s.valid_attempt_count >= 1 AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed'))
+         OR s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected', 'No Answer')
+         OR s.communication_status IN ('Not Connected / Retrying', 'Pending Second Call', 'Pending Third Call', 'Attempt 1 Completed', 'Attempt 2 Completed', 'Attempt 3 Completed')
+       )
+       AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')`
     )
     .get(...params).c;
 
@@ -123,6 +138,7 @@ function getDashboardStats(filters = {}, user = null, db = getDb()) {
     totalStudentsAssigned: totalAssigned,
     totalCallsAttempted,
     successfullyContacted,
+    unattended: unattendedCount,
     notReachable,
     noAnswer,
     callbacksRequested,

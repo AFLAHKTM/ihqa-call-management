@@ -1,4 +1,4 @@
-const { getDb, withTransaction, ensureStaffAndSplitUnuploaded } = require('./database');
+const { getDb, withTransaction, ensureStaffAndSplitUnuploaded, ensureUnaisAndAssign192to235 } = require('./database');
 const { hashPassword } = require('../utils/security');
 const { isValidEmail } = require('../utils/security');
 const { RECITATION_RECORDS, TAFSIR_RECORDS } = require('./pdfDataset');
@@ -130,7 +130,7 @@ function seedDatabase(db = getDb(), { force = false } = {}) {
 
     const shuffledQirath = shuffleArray(RECITATION_RECORDS);
     for (let i = 0; i < shuffledQirath.length; i += 1) {
-      insertPdfRecord(shuffledQirath[i], 'Holy Quran Recitation', 'REC', callerIds[i % callerIds.length]);
+      insertPdfRecord(shuffledQirath[i], 'Holy Quran Recitation', 'QIR', callerIds[i % callerIds.length]);
     }
 
     const shuffledTafseer = shuffleArray(TAFSIR_RECORDS);
@@ -153,6 +153,7 @@ function seedDatabase(db = getDb(), { force = false } = {}) {
   });
 
   ensureStaffAndSplitUnuploaded(db);
+  ensureUnaisAndAssign192to235(db);
   return result;
 }
 

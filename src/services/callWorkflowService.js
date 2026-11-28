@@ -82,7 +82,11 @@ function listStudents(filters = {}, user = null, db = getDb()) {
   }
   if (filters.callStatus) {
     if (filters.callStatus === 'UNATTENDED') {
-      where.push("s.valid_attempt_count >= 1 AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+      where.push(`(
+        (s.valid_attempt_count >= 1 AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed'))
+        OR s.last_call_outcome IN ('Not Reachable', 'Switched Off', 'Busy', 'Temporary Unavailable', 'Call Disconnected', 'No Answer')
+        OR s.communication_status IN ('Not Connected / Retrying', 'Pending Second Call', 'Pending Third Call', 'Attempt 1 Completed', 'Attempt 2 Completed', 'Attempt 3 Completed')
+      ) AND s.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')`);
     } else if (filters.callStatus === 'PENDING_ALL') {
       where.push("s.communication_status IN ('Pending First Call', 'Pending Second Call', 'Pending Third Call', 'Callback Scheduled')");
     } else if (filters.callStatus === 'CALLS_MADE') {

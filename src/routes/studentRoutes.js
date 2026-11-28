@@ -43,7 +43,7 @@ router.get('/approved-dated', (req, res) => {
 
   const where = [
     "s.communication_status IN ('Successfully Contacted', 'Follow-up Completed')",
-    "u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany')",
+    "u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany', 'unais_adany')",
   ];
   const params = [];
 
@@ -87,10 +87,10 @@ router.get('/approved-dated', (req, res) => {
   const baseWhere =
     req.user.role === ROLES.CALLING_STAFF
       ? "WHERE s.communication_status IN ('Successfully Contacted', 'Follow-up Completed') AND s.assigned_staff_id = ?"
-      : "WHERE s.communication_status IN ('Successfully Contacted', 'Follow-up Completed') AND u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany')";
+      : "WHERE s.communication_status IN ('Successfully Contacted', 'Follow-up Completed') AND u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany', 'unais_adany')";
   const baseParams = req.user.role === ROLES.CALLING_STAFF ? [req.user.id] : [];
 
-  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3 };
+  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3, unais_adany: 4 };
   const staffBreakdown = db
     .prepare(
       `SELECT u.id, u.username, u.full_name, COUNT(s.id) AS count
@@ -177,7 +177,7 @@ router.get('/scheduled-day', (req, res) => {
       : 'WHERE s.scheduled_call_day = ?';
   const baseParams = req.user.role === ROLES.CALLING_STAFF ? [day, req.user.id] : [day];
 
-  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3 };
+  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3, unais_adany: 4 };
   const staffBreakdown = db
     .prepare(
       `SELECT u.id, u.username, u.full_name, COUNT(s.id) AS count

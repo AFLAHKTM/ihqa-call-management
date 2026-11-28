@@ -53,7 +53,7 @@ router.get('/summary', (req, res) => {
     if (row.exam_category === 'Complete Memorization of the Holy Quran with Tafsir') sectionCounts.tafseer = row.c;
   }
 
-  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3 };
+  const orderRank = { shahid_adany: 1, usman_adany: 2, saeed_adany: 3, unais_adany: 4 };
   const staffBreakdown =
     req.user.role === 'CALLING_STAFF'
       ? []
@@ -88,7 +88,7 @@ router.get('/summary', (req, res) => {
            FROM students s
            JOIN users u ON u.id = s.assigned_staff_id
            WHERE s.communication_status IN ('Successfully Contacted', 'Follow-up Completed')
-             AND u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany')`
+             AND u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany', 'unais_adany')`
         )
         .get().c;
   const mondayTotal = isStaff

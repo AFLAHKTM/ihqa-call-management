@@ -328,6 +328,7 @@ function initDatabase(customPath) {
     const hasAdmin = db.prepare("SELECT COUNT(*) AS cnt FROM users WHERE username = 'admin'").get().cnt > 0;
     if (hasAdmin) {
       ensureStaffAndSplitUnuploaded(db);
+      ensureUnaisAndAssign192to235(db);
     }
   } catch (err) {
     try { db.exec('ROLLBACK'); } catch (_) {}
@@ -436,6 +437,114 @@ function ensureStaffAndSplitUnuploaded(db) {
   }
 }
 
+function ensureUnaisAndAssign192to235(db) {
+  const { hashPassword, isValidEmail } = require('../utils/security');
+  const { RECITATION_RECORDS } = require('./pdfDataset');
+
+  let unais = db.prepare("SELECT id FROM users WHERE username = 'unais_adany'").get();
+  if (!unais) {
+    const info = db.prepare(`
+      INSERT INTO users (username, password_hash, full_name, email, phone, role, daily_target)
+      VALUES (?, ?, ?, ?, '', 'CALLING_STAFF', 45)
+    `).run('unais_adany', hashPassword('Staff@2026'), 'Unais Adany', 'unais.adany@ihqakerala.org');
+    unais = { id: Number(info.lastInsertRowid) };
+  }
+
+  const nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const insertInst = db.prepare(`
+    INSERT INTO institutions (code, name, place, district, supervisor_name, supervisor_phone, supervisor_email, registered_students_count, winner_status, category_scope)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertStudent = db.prepare(`
+    INSERT INTO students (
+      registration_number, student_name, parent_name, student_mobile, parent_mobile, email,
+      district, institution_id, institution_name, coordinator_name, coordinator_mobile, coordinator_email,
+      exam_category, assigned_staff_id, assigned_at, communication_status, valid_attempt_count,
+      last_call_outcome, last_called_at, next_followup_at, manual_followup_required,
+      invalid_number_flagged, three_attempt_sequence_id, email_notified_sequence, notes_summary
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, 0, 0, 1, 0, ?)
+  `);
+
+  let instMaxId = db.prepare('SELECT MAX(id) as m FROM institutions').get().m || 0;
+
+  db.exec('BEGIN');
+  try {
+    for (let i = 192; i < 235; i++) {
+      const rec = RECITATION_RECORDS[i];
+      const [instName, place, district, supName, supPhone, supEmail, totalInstStudents, winnerStatus, studentName] = rec;
+      const recNum = i + 1; // 193 to 235
+      const regNo = `IHQA-QIR-${String(recNum).padStart(3, '0')}`;
+      const existing = db.prepare(
+        "SELECT id FROM students WHERE registration_number = ? OR (institution_name = ? AND student_name = ? AND exam_category = 'Holy Quran Recitation')"
+      ).get(regNo, instName.trim(), studentName.trim());
+      if (!existing) {
+
+        let instRow = db.prepare('SELECT id FROM institutions WHERE name = ? AND place = ?').get(instName.trim(), place.trim());
+        let instId;
+        if (instRow) {
+          instId = instRow.id;
+        } else {
+          instMaxId++;
+          const code = `IHQA-INST-${String(instMaxId).padStart(3, '0')}`;
+          const res = insertInst.run(
+            code,
+            instName.trim(),
+            place.trim(),
+            district.trim(),
+            supName.trim(),
+            supPhone.trim(),
+            supEmail.trim(),
+            Number(totalInstStudents || 0),
+            winnerStatus.trim(),
+            'Holy Quran Recitation'
+          );
+          instId = Number(res.lastInsertRowid);
+        }
+
+        const validEmail = isValidEmail(supEmail) ? supEmail.trim() : null;
+        const notes = `PDF #${recNum} | Students: ${totalInstStudents} | ${winnerStatus.trim()}`;
+
+        insertStudent.run(
+          regNo,
+          studentName.trim(),
+          supName.trim(),
+          supPhone.trim(),
+          '',
+          validEmail,
+          district.trim(),
+          instId,
+          instName.trim(),
+          supName.trim(),
+          supPhone.trim(),
+          supEmail.trim(),
+          'Holy Quran Recitation',
+          unais.id,
+          nowIso,
+          'Pending First Call',
+          notes
+        );
+      }
+    }
+
+    // Assign institutions 192-235 (both Qirath and Tafsir) to Unais Adany
+    const slice192_235 = RECITATION_RECORDS.slice(191, 235);
+    const instNames = slice192_235.map(r => r[0].trim());
+    const instPlaceholders = instNames.map(() => '?').join(',');
+
+    db.prepare(`
+      UPDATE students
+      SET assigned_staff_id = ?, assigned_at = ?
+      WHERE institution_name IN (${instPlaceholders})
+        AND assigned_staff_id != ?
+    `).run(unais.id, nowIso, ...instNames, unais.id);
+
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch (_) {}
+  }
+}
+
 function getDb() {
   if (!dbInstance) {
     return initDatabase();
@@ -482,6 +591,7 @@ function getSettingsMap(db = getDb()) {
 module.exports = {
   initDatabase,
   ensureStaffAndSplitUnuploaded,
+  ensureUnaisAndAssign192to235,
   getDb,
   setDb,
   closeDb,
