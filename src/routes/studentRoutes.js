@@ -247,7 +247,17 @@ router.post('/:id/transfer-day', (req, res) => {
     db
   );
 
-  res.json({ ok: true, id: studentId, scheduled_call_day: day });
+  const countWhere =
+    req.user.role === ROLES.CALLING_STAFF ? 'AND assigned_staff_id = ?' : '';
+  const countParams = req.user.role === ROLES.CALLING_STAFF ? [req.user.id] : [];
+  const mondayCount = db
+    .prepare(`SELECT COUNT(*) AS cnt FROM students WHERE scheduled_call_day = 'Monday' ${countWhere}`)
+    .get(...countParams).cnt;
+  const tuesdayCount = db
+    .prepare(`SELECT COUNT(*) AS cnt FROM students WHERE scheduled_call_day = 'Tuesday' ${countWhere}`)
+    .get(...countParams).cnt;
+
+  res.json({ ok: true, id: studentId, scheduled_call_day: day, mondayCount, tuesdayCount });
 });
 
 router.post('/', requireRole(ROLES.ADMIN, ROLES.SUPERVISOR), (req, res) => {

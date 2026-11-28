@@ -1028,7 +1028,8 @@ async function loadApprovedDated() {
   document.getElementById('nav-approved-badge').textContent = data.overallTotal ?? data.total;
   document.getElementById('approved-total-label').textContent = `${data.total} approved`;
 
-  renderApprovedDated(data.rows || []);
+  state.approvedRows = data.rows || [];
+  renderApprovedDated(state.approvedRows);
 }
 
 function renderApprovedDated(rows) {
@@ -1098,32 +1099,7 @@ function renderApprovedDated(rows) {
   });
 }
 
-async function transferStudentDay(studentId, day) {
-  try {
-    await api(`/api/students/${studentId}/transfer-day`, {
-      method: 'POST',
-      body: JSON.stringify({ day }),
-    });
-    showToast(day ? `Transferred to Call for ${day}` : 'Removed from scheduled day', 'success');
-    await Promise.all([
-      refreshDayBadges(),
-      !document.getElementById('view-approved-dated').classList.contains('hidden') ? loadApprovedDated() : Promise.resolve(),
-      !document.getElementById('view-call-monday').classList.contains('hidden') ? loadScheduledDay('Monday') : Promise.resolve(),
-      !document.getElementById('view-call-tuesday').classList.contains('hidden') ? loadScheduledDay('Tuesday') : Promise.resolve(),
-    ]);
-  } catch (err) {
-    showToast(err.message || 'Transfer failed', 'error');
-  }
-}
-
-async function refreshDayBadges() {
-  const [monData, tueData] = await Promise.all([
-    api('/api/students/scheduled-day?day=Monday').catch(() => null),
-    api('/api/students/scheduled-day?day=Tuesday').catch(() => null),
-  ]);
-  const monCount = Number(monData?.overallTotal ?? 0);
-  const tueCount = Number(tueData?.overallTotal ?? 0);
-
+function applyDayBadgeCounts(monCount, tueCount) {
   const monNav = document.getElementById('nav-monday-badge');
   if (monNav) monNav.textContent = monCount;
   const tueNav = document.getElementById('nav-tuesday-badge');
@@ -1135,6 +1111,74 @@ async function refreshDayBadges() {
   if (tueSummary) tueSummary.textContent = tueCount;
   const totalSummary = document.getElementById('approved-montue-total');
   if (totalSummary) totalSummary.textContent = monCount + tueCount;
+}
+
+async function transferStudentDay(studentId, day) {
+  const prevApproved = (state.approvedRows || []).map((r) => ({ ...r }));
+  const prevRow = (state.approvedRows || []).find((r) => Number(r.id) === Number(studentId));
+  const prevDay = prevRow ? prevRow.scheduled_call_day || null : null;
+
+  // Optimistic instant UI update (<2ms)
+  const curMon = Number(document.getElementById('nav-monday-badge')?.textContent || 0);
+  const curTue = Number(document.getElementById('nav-tuesday-badge')?.textContent || 0);
+  let nextMon = curMon;
+  let nextTue = curTue;
+  if (prevDay === 'Monday') nextMon = Math.max(0, nextMon - 1);
+  if (prevDay === 'Tuesday') nextTue = Math.max(0, nextTue - 1);
+  if (day === 'Monday') nextMon += 1;
+  if (day === 'Tuesday') nextTue += 1;
+  applyDayBadgeCounts(nextMon, nextTue);
+
+  if (state.approvedRows) {
+    state.approvedRows = state.approvedRows.map((r) =>
+      Number(r.id) === Number(studentId) ? { ...r, scheduled_call_day: day } : r
+    );
+    if (!document.getElementById('view-approved-dated').classList.contains('hidden')) {
+      renderApprovedDated(state.approvedRows);
+    }
+  }
+
+  for (const d of ['Monday', 'Tuesday']) {
+    const key = d.toLowerCase();
+    const rowsKey = `${key}Rows`;
+    if (!document.getElementById(`view-call-${key}`).classList.contains('hidden') && state[rowsKey]) {
+      if (day !== d) {
+        state[rowsKey] = state[rowsKey].filter((r) => Number(r.id) !== Number(studentId));
+        renderScheduledDay(d, state[rowsKey]);
+        const lbl = document.getElementById(`${key}-total-label`);
+        if (lbl) lbl.textContent = `${state[rowsKey].length} scheduled`;
+      }
+    }
+  }
+
+  showToast(day ? `Transferred to Call for ${day}` : 'Removed from scheduled day', 'success');
+
+  try {
+    const res = await api(`/api/students/${studentId}/transfer-day`, {
+      method: 'POST',
+      body: JSON.stringify({ day }),
+    });
+    if (res && res.mondayCount !== undefined && res.tuesdayCount !== undefined) {
+      applyDayBadgeCounts(res.mondayCount, res.tuesdayCount);
+    }
+  } catch (err) {
+    state.approvedRows = prevApproved;
+    if (!document.getElementById('view-approved-dated').classList.contains('hidden')) {
+      renderApprovedDated(state.approvedRows);
+    }
+    applyDayBadgeCounts(curMon, curTue);
+    showToast(err.message || 'Transfer failed', 'error');
+  }
+}
+
+async function refreshDayBadges() {
+  const [monData, tueData] = await Promise.all([
+    api('/api/students/scheduled-day?day=Monday').catch(() => null),
+    api('/api/students/scheduled-day?day=Tuesday').catch(() => null),
+  ]);
+  const monCount = Number(monData?.overallTotal ?? 0);
+  const tueCount = Number(tueData?.overallTotal ?? 0);
+  applyDayBadgeCounts(monCount, tueCount);
 }
 
 async function loadScheduledDay(day) {
@@ -1183,7 +1227,8 @@ async function loadScheduledDay(day) {
   const totalLabel = document.getElementById(`${key}-total-label`);
   if (totalLabel) totalLabel.textContent = `${data.total} scheduled`;
 
-  renderScheduledDay(day, data.rows || []);
+  state[`${key}Rows`] = data.rows || [];
+  renderScheduledDay(day, state[`${key}Rows`]);
 }
 
 function renderScheduledDay(day, rows) {
