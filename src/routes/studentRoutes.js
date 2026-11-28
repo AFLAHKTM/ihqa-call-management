@@ -212,14 +212,8 @@ router.get('/scheduled-day/export', (req, res) => {
   return res.send(csv);
 });
 
-// ── Scheduled-day PDF export (A4) ────────────────────────────────────────────
+// ── Scheduled-day PDF — print-ready HTML page (browser Save as PDF, A4 landscape) ──
 router.get('/scheduled-day/pdf', (req, res) => {
-  let PDFDocument;
-  try {
-    PDFDocument = require('pdfkit');
-  } catch (e) {
-    return res.status(500).json({ error: 'PDF generation not available on this server.' });
-  }
   const db = getDb();
   const { day = '', search = '', district = '', staffId = '' } = req.query;
   if (!['Monday', 'Tuesday'].includes(day)) {
@@ -228,7 +222,6 @@ router.get('/scheduled-day/pdf', (req, res) => {
 
   const where = ['s.scheduled_call_day = ?'];
   const params = [day];
-
   if (req.user.role === ROLES.CALLING_STAFF) {
     where.push('s.assigned_staff_id = ?');
     params.push(req.user.id);
@@ -257,134 +250,72 @@ router.get('/scheduled-day/pdf', (req, res) => {
      WHERE ${where.join(' AND ')}`
   ).all(...params);
 
-  const safeName = `Call_for_${day}`;
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);
-
-  // A4: 595.28 x 841.89 pt — landscape for more columns
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 28, autoFirstPage: true });
-  doc.pipe(res);
-
-  const W = 841.89 - 56; // usable width in landscape
-  const H = 595.28;
-  const marginL = 28;
-  const marginT = 28;
-
-  // ── Header ────────────────────────────────────────────────────────────────
-  doc.rect(marginL, marginT, W, 36).fill('#0f5132');
-  doc.fillColor('#ffffff').fontSize(13).font('Helvetica-Bold')
-    .text('India Holy Quran Award 2026–27 — Kerala Initial Screening', marginL + 8, marginT + 6, { width: W - 180, lineBreak: false });
-  doc.fontSize(10).font('Helvetica')
-    .text(`Call for ${day} — Scheduled Establishments`, marginL + 8, marginT + 22, { width: W - 180, lineBreak: false });
-
-  // right: total + date
-  const generatedStr = `Total: ${rows.length}  |  Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}`;
-  doc.fillColor('#d1fae5').fontSize(8).font('Helvetica')
-    .text(generatedStr, marginL + W - 200, marginT + 14, { width: 196, align: 'right', lineBreak: false });
-
-  // ── Column definitions ────────────────────────────────────────────────────
-  const cols = [
-    { label: '#',          key: 'num',           w: 22 },
-    { label: 'Reg No',     key: 'reg',           w: 62 },
-    { label: 'Institution',key: 'inst',          w: 118 },
-    { label: 'Place',      key: 'place',         w: 60 },
-    { label: 'District',   key: 'district',      w: 60 },
-    { label: 'Supervisor', key: 'sup',           w: 80 },
-    { label: 'Phone',      key: 'phone',         w: 72 },
-    { label: 'Email',      key: 'email',         w: 110 },
-    { label: 'Category',   key: 'cat',           w: 85 },
-    { label: 'Winner',     key: 'winner',        w: 80 },
-    { label: 'Handled By', key: 'staff',         w: 65 },
-    { label: 'Approved',   key: 'approved',      w: 72 },
-  ];
-  // Stretch last column to fill remaining width
-  const usedW = cols.reduce((s, c) => s + c.w, 0);
-  cols[cols.length - 1].w += (W - usedW);
-
-  const rowH = 22;
-  const headerH = 18;
-  let y = marginT + 36 + 4;
-
-  const drawTableHeader = () => {
-    let x = marginL;
-    doc.rect(marginL, y, W, headerH).fill('#1a6b41');
-    cols.forEach(col => {
-      doc.fillColor('#ffffff').fontSize(7).font('Helvetica-Bold')
-        .text(col.label, x + 2, y + 5, { width: col.w - 4, lineBreak: false, ellipsis: true });
-      x += col.w;
-    });
-    y += headerH;
-  };
-
-  drawTableHeader();
-
-  let rowIdx = 0;
-  rows.forEach((s) => {
-    const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
-    const displayNo = pdfMatch ? Number(pdfMatch[1]) : rowIdx + 1;
-
-    // Estimate row height needed (institution name can wrap)
-    const instText = s.institution_name || '';
-    const approvedStr = s.last_called_at
-      ? new Date(s.last_called_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : '';
-
-    // Check if we need a new page
-    if (y + rowH > H - marginT) {
-      doc.addPage();
-      y = marginT;
-      drawTableHeader();
-    }
-
-    // Row background (alternating)
-    const bgColor = rowIdx % 2 === 0 ? '#f0fdf4' : '#ffffff';
-    doc.rect(marginL, y, W, rowH).fill(bgColor);
-
-    // Cell borders (bottom line only)
-    doc.moveTo(marginL, y + rowH).lineTo(marginL + W, y + rowH).strokeColor('#d1d5db').lineWidth(0.3).stroke();
-
-    // Draw cells
-    let x = marginL;
-    const cellData = [
-      String(displayNo),
-      s.registration_number || '',
-      instText,
-      s.institution_place || '',
-      s.district || '',
-      s.coordinator_name || '',
-      s.coordinator_mobile || '',
-      s.coordinator_email || '',
-      s.exam_category || '',
-      s.student_name || '',
-      s.assigned_staff_name || '',
-      approvedStr,
-    ];
-
-    cellData.forEach((text, i) => {
-      const col = cols[i];
-      doc.fillColor('#111827').fontSize(6.5).font('Helvetica')
-        .text(String(text), x + 2, y + 7, {
-          width: col.w - 4,
-          height: rowH - 7,
-          lineBreak: false,
-          ellipsis: true,
-        });
-      // vertical separator
-      doc.moveTo(x + col.w, y).lineTo(x + col.w, y + rowH).strokeColor('#e5e7eb').lineWidth(0.3).stroke();
-      x += col.w;
-    });
-
-    y += rowH;
-    rowIdx++;
+  const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const generatedAt = new Date().toLocaleString('en-IN', {
+    timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
   });
 
-  // Footer on each page
-  const totalPages = doc.bufferedPageRange ? doc.bufferedPageRange().count : 1;
-  for (let i = 0; i < doc._pageBuffer?.length || 0; i++) {
-    // pdfkit doesn't easily support retroactive footer — skip for now
-  }
+  const tableRows = rows.map((s, idx) => {
+    const m = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+    const displayNo = m ? Number(m[1]) : idx + 1;
+    const approved = s.last_called_at
+      ? new Date(s.last_called_at).toLocaleString('en-IN', { timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '—';
+    const bg = idx % 2 === 0 ? '#f0fdf4' : '#ffffff';
+    return `<tr style="background:${bg}">
+      <td style="text-align:center;font-weight:700">${displayNo}</td>
+      <td style="font-size:6pt;color:#374151">${esc(s.registration_number)}</td>
+      <td><strong>${esc(s.institution_name)}</strong><br><span style="font-size:6pt;color:#6b7280">${esc([s.institution_place,s.district].filter(Boolean).join(', '))}</span></td>
+      <td>${esc(s.coordinator_name)}</td>
+      <td style="font-weight:600;color:#065f46">${esc(s.coordinator_mobile)}</td>
+      <td style="font-size:6pt;word-break:break-all">${esc(s.coordinator_email)}</td>
+      <td>${esc(s.exam_category)}<br><span style="color:#1a6b41;font-weight:700">${esc(s.student_name)}</span></td>
+      <td style="font-size:6.5pt">${esc(s.assigned_staff_name)}</td>
+      <td style="font-size:6.5pt;color:#374151">${approved}</td>
+    </tr>`;
+  }).join('');
 
-  doc.end();
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>Call for ${esc(day)} — IHQA 2026-27</title>
+<style>
+@page{size:A4 landscape;margin:10mm 8mm}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:7.5pt;color:#111;background:#fff}
+.hdr{background:#0f5132;color:#fff;padding:5px 8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;border-radius:2px}
+.hdr h1{font-size:11pt;font-weight:700;line-height:1.3}
+.hdr .sub{font-size:8pt;opacity:.85}
+.hdr .meta{text-align:right;font-size:7pt;opacity:.9;white-space:nowrap}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+col.n{width:22px}col.r{width:70px}col.i{width:148px}col.s{width:95px}
+col.p{width:78px}col.e{width:118px}col.c{width:120px}col.h{width:72px}col.d{width:80px}
+thead tr{background:#145c38;color:#fff}
+thead th{padding:4px 3px;font-size:7pt;font-weight:700;text-align:left;border:1px solid #0a3d25}
+tbody td{padding:3px;border:1px solid #d1d5db;vertical-align:top;overflow:hidden;word-break:break-word}
+.ftr{margin-top:5px;display:flex;justify-content:space-between;font-size:6pt;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:2px}
+.print-btn{display:block;margin:8px auto;padding:7px 22px;background:#0f5132;color:#fff;border:none;border-radius:4px;font-size:9pt;cursor:pointer}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none}}
+</style></head><body>
+<button class="print-btn no-print" onclick="window.print()">🖨 Save as PDF / Print</button>
+<div class="hdr">
+  <div><h1>India Holy Quran Award 2026–27 — Kerala Initial Screening</h1>
+    <div class="sub">Call for ${esc(day)} — Scheduled Establishments</div></div>
+  <div class="meta">Total: ${rows.length}<br>Generated: ${generatedAt}</div>
+</div>
+<table>
+  <colgroup><col class="n"/><col class="r"/><col class="i"/><col class="s"/>
+    <col class="p"/><col class="e"/><col class="c"/><col class="h"/><col class="d"/></colgroup>
+  <thead><tr>
+    <th>#</th><th>Reg No</th><th>Institution &amp; Location</th><th>Supervisor</th>
+    <th>Phone</th><th>Email</th><th>Category &amp; Winner</th><th>Handled By</th><th>Approved</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+<div class="ftr no-print"><span>India Holy Quran Award 2026–27 — IHQA Call Management</span><span>Generated: ${generatedAt}</span></div>
+<script>window.onload=()=>window.print();</script>
+</body></html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(html);
 });
 
 router.get('/scheduled-day', (req, res) => {

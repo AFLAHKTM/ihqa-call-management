@@ -1621,7 +1621,7 @@ async function loadScheduledDay(day) {
       window.location.href = `/api/students/scheduled-day/export?${buildExportParams()}&format=excel`;
     });
     document.getElementById(`${key}-export-pdf`).addEventListener('click', () => {
-      window.location.href = `/api/students/scheduled-day/pdf?${buildExportParams()}`;
+      window.open(`/api/students/scheduled-day/pdf?${buildExportParams()}`, '_blank');
     });
   }
 
