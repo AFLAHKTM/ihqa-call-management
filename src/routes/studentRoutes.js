@@ -17,6 +17,7 @@ const { initiateClickToCall } = require('../services/telephonyService');
 const { triggerThreeAttemptEmail } = require('../services/emailService');
 const { logAudit } = require('../services/auditService');
 const { reportToCsv, reportToExcelXml } = require('../services/reportService');
+const PDFDocument = require('pdfkit');
 
 const router = express.Router();
 
@@ -210,6 +211,175 @@ router.get('/scheduled-day/export', (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}.csv"`);
   return res.send(csv);
+});
+
+// ── Scheduled-day PDF export (A4) ────────────────────────────────────────────
+router.get('/scheduled-day/pdf', (req, res) => {
+  const db = getDb();
+  const { day = '', search = '', district = '', staffId = '' } = req.query;
+  if (!['Monday', 'Tuesday'].includes(day)) {
+    return res.status(400).json({ error: 'day must be Monday or Tuesday' });
+  }
+
+  const where = ['s.scheduled_call_day = ?'];
+  const params = [day];
+
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(req.user.id);
+  } else if (staffId) {
+    where.push('s.assigned_staff_id = ?');
+    params.push(Number(staffId));
+  }
+  if (search) {
+    const q = `%${search.trim()}%`;
+    where.push('(s.institution_name LIKE ? OR s.student_name LIKE ? OR s.district LIKE ? OR s.coordinator_name LIKE ? OR s.coordinator_mobile LIKE ?)');
+    params.push(q, q, q, q, q);
+  }
+  if (district) {
+    where.push('s.district = ?');
+    params.push(district);
+  }
+
+  const rows = db.prepare(
+    `SELECT s.registration_number, s.institution_name, i.place AS institution_place,
+            s.district, s.coordinator_name, s.coordinator_mobile, s.coordinator_email,
+            s.exam_category, s.student_name, u.full_name AS assigned_staff_name,
+            s.last_called_at, s.scheduled_call_day
+     FROM students s
+     LEFT JOIN users u ON u.id = s.assigned_staff_id
+     LEFT JOIN institutions i ON i.id = s.institution_id
+     WHERE ${where.join(' AND ')}`
+  ).all(...params);
+
+  const safeName = `Call_for_${day}`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}.pdf"`);
+
+  // A4: 595.28 x 841.89 pt — landscape for more columns
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 28, autoFirstPage: true });
+  doc.pipe(res);
+
+  const W = 841.89 - 56; // usable width in landscape
+  const H = 595.28;
+  const marginL = 28;
+  const marginT = 28;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  doc.rect(marginL, marginT, W, 36).fill('#0f5132');
+  doc.fillColor('#ffffff').fontSize(13).font('Helvetica-Bold')
+    .text('India Holy Quran Award 2026–27 — Kerala Initial Screening', marginL + 8, marginT + 6, { width: W - 180, lineBreak: false });
+  doc.fontSize(10).font('Helvetica')
+    .text(`Call for ${day} — Scheduled Establishments`, marginL + 8, marginT + 22, { width: W - 180, lineBreak: false });
+
+  // right: total + date
+  const generatedStr = `Total: ${rows.length}  |  Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}`;
+  doc.fillColor('#d1fae5').fontSize(8).font('Helvetica')
+    .text(generatedStr, marginL + W - 200, marginT + 14, { width: 196, align: 'right', lineBreak: false });
+
+  // ── Column definitions ────────────────────────────────────────────────────
+  const cols = [
+    { label: '#',          key: 'num',           w: 22 },
+    { label: 'Reg No',     key: 'reg',           w: 62 },
+    { label: 'Institution',key: 'inst',          w: 118 },
+    { label: 'Place',      key: 'place',         w: 60 },
+    { label: 'District',   key: 'district',      w: 60 },
+    { label: 'Supervisor', key: 'sup',           w: 80 },
+    { label: 'Phone',      key: 'phone',         w: 72 },
+    { label: 'Email',      key: 'email',         w: 110 },
+    { label: 'Category',   key: 'cat',           w: 85 },
+    { label: 'Winner',     key: 'winner',        w: 80 },
+    { label: 'Handled By', key: 'staff',         w: 65 },
+    { label: 'Approved',   key: 'approved',      w: 72 },
+  ];
+  // Stretch last column to fill remaining width
+  const usedW = cols.reduce((s, c) => s + c.w, 0);
+  cols[cols.length - 1].w += (W - usedW);
+
+  const rowH = 22;
+  const headerH = 18;
+  let y = marginT + 36 + 4;
+
+  const drawTableHeader = () => {
+    let x = marginL;
+    doc.rect(marginL, y, W, headerH).fill('#1a6b41');
+    cols.forEach(col => {
+      doc.fillColor('#ffffff').fontSize(7).font('Helvetica-Bold')
+        .text(col.label, x + 2, y + 5, { width: col.w - 4, lineBreak: false, ellipsis: true });
+      x += col.w;
+    });
+    y += headerH;
+  };
+
+  drawTableHeader();
+
+  let rowIdx = 0;
+  rows.forEach((s) => {
+    const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+    const displayNo = pdfMatch ? Number(pdfMatch[1]) : rowIdx + 1;
+
+    // Estimate row height needed (institution name can wrap)
+    const instText = s.institution_name || '';
+    const approvedStr = s.last_called_at
+      ? new Date(s.last_called_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    // Check if we need a new page
+    if (y + rowH > H - marginT) {
+      doc.addPage();
+      y = marginT;
+      drawTableHeader();
+    }
+
+    // Row background (alternating)
+    const bgColor = rowIdx % 2 === 0 ? '#f0fdf4' : '#ffffff';
+    doc.rect(marginL, y, W, rowH).fill(bgColor);
+
+    // Cell borders (bottom line only)
+    doc.moveTo(marginL, y + rowH).lineTo(marginL + W, y + rowH).strokeColor('#d1d5db').lineWidth(0.3).stroke();
+
+    // Draw cells
+    let x = marginL;
+    const cellData = [
+      String(displayNo),
+      s.registration_number || '',
+      instText,
+      s.institution_place || '',
+      s.district || '',
+      s.coordinator_name || '',
+      s.coordinator_mobile || '',
+      s.coordinator_email || '',
+      s.exam_category || '',
+      s.student_name || '',
+      s.assigned_staff_name || '',
+      approvedStr,
+    ];
+
+    cellData.forEach((text, i) => {
+      const col = cols[i];
+      doc.fillColor('#111827').fontSize(6.5).font('Helvetica')
+        .text(String(text), x + 2, y + 7, {
+          width: col.w - 4,
+          height: rowH - 7,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      // vertical separator
+      doc.moveTo(x + col.w, y).lineTo(x + col.w, y + rowH).strokeColor('#e5e7eb').lineWidth(0.3).stroke();
+      x += col.w;
+    });
+
+    y += rowH;
+    rowIdx++;
+  });
+
+  // Footer on each page
+  const totalPages = doc.bufferedPageRange ? doc.bufferedPageRange().count : 1;
+  for (let i = 0; i < doc._pageBuffer?.length || 0; i++) {
+    // pdfkit doesn't easily support retroactive footer — skip for now
+  }
+
+  doc.end();
 });
 
 router.get('/scheduled-day', (req, res) => {

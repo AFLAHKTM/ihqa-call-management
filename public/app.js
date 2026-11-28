@@ -1602,7 +1602,7 @@ async function loadScheduledDay(day) {
       <span style="font-size:0.82rem;color:#6b7280;font-weight:600;margin-right:4px;">Export:</span>
       <button type="button" class="btn btn-sm btn-outline" id="${key}-export-csv" title="Download CSV">⬇ CSV</button>
       <button type="button" class="btn btn-sm btn-outline" id="${key}-export-excel" title="Download Excel">⬇ Excel</button>
-      <button type="button" class="btn btn-sm btn-outline" id="${key}-export-print" title="Print / Save as PDF">🖨 Print / PDF</button>
+      <button type="button" class="btn btn-sm btn-outline" id="${key}-export-pdf" title="Download PDF (A4 Landscape)" style="color:#b91c1c;border-color:#b91c1c;">⬇ PDF</button>
     `;
     const buildExportParams = () => {
       const p = new URLSearchParams({ day });
@@ -1620,8 +1620,8 @@ async function loadScheduledDay(day) {
     document.getElementById(`${key}-export-excel`).addEventListener('click', () => {
       window.location.href = `/api/students/scheduled-day/export?${buildExportParams()}&format=excel`;
     });
-    document.getElementById(`${key}-export-print`).addEventListener('click', () => {
-      window.print();
+    document.getElementById(`${key}-export-pdf`).addEventListener('click', () => {
+      window.location.href = `/api/students/scheduled-day/pdf?${buildExportParams()}`;
     });
   }
 
