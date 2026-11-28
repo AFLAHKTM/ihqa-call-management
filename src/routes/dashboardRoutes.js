@@ -16,13 +16,21 @@ router.use(requireAuth);
 router.get('/summary', (req, res) => {
   const db = getDb();
   const stats = getDashboardStats(req.query, req.user, db);
+  const selectedStaffId =
+    req.user.role === 'CALLING_STAFF'
+      ? req.user.id
+      : req.query.assignedStaffId && req.query.assignedStaffId !== 'unassigned'
+        ? Number(req.query.assignedStaffId)
+        : null;
+  const instWhere = selectedStaffId ? 'WHERE assigned_staff_id = ?' : '';
+  const instParams = selectedStaffId ? [selectedStaffId] : [];
   const institutions = db
-    .prepare('SELECT DISTINCT institution_name FROM students ORDER BY institution_name ASC')
-    .all()
+    .prepare(`SELECT DISTINCT institution_name FROM students ${instWhere} ORDER BY institution_name ASC`)
+    .all(...instParams)
     .map((r) => r.institution_name);
   const districts = db
-    .prepare('SELECT DISTINCT district FROM students ORDER BY district ASC')
-    .all()
+    .prepare(`SELECT DISTINCT district FROM students ${instWhere} ORDER BY district ASC`)
+    .all(...instParams)
     .map((r) => r.district);
   const staffList =
     req.user.role === 'CALLING_STAFF'
@@ -33,8 +41,8 @@ router.get('/summary', (req, res) => {
 
   const settings = getSettingsMap(db);
 
-  const staffWhere = req.user.role === 'CALLING_STAFF' ? 'WHERE assigned_staff_id = ?' : '';
-  const staffParams = req.user.role === 'CALLING_STAFF' ? [req.user.id] : [];
+  const staffWhere = selectedStaffId ? 'WHERE assigned_staff_id = ?' : '';
+  const staffParams = selectedStaffId ? [selectedStaffId] : [];
   const sectionCountsRows = db
     .prepare(`SELECT exam_category, COUNT(*) as c FROM students ${staffWhere} GROUP BY exam_category`)
     .all(...staffParams);

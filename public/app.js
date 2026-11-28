@@ -209,6 +209,17 @@ function filterDashboardStudentsInMemory() {
   state.students = filtered;
   const qb = document.getElementById('queue-count-badge');
   if (qb) qb.textContent = filtered.length;
+
+  const staffBase = staffId
+    ? state.allStudents.filter((s) => String(s.assigned_staff_id) === String(staffId))
+    : state.allStudents;
+  const cntAll = document.getElementById('cnt-all');
+  const cntQirath = document.getElementById('cnt-qirath');
+  const cntTafseer = document.getElementById('cnt-tafseer');
+  if (cntAll) cntAll.textContent = staffBase.length;
+  if (cntQirath) cntQirath.textContent = staffBase.filter((s) => s.exam_category === 'Holy Quran Recitation').length;
+  if (cntTafseer) cntTafseer.textContent = staffBase.filter((s) => s.exam_category === 'Complete Memorization of the Holy Quran with Tafsir').length;
+
   renderStudentsTable(filtered);
   return true;
 }
@@ -252,8 +263,20 @@ function applyDashboardPayload(summary, listData) {
       btn.addEventListener('click', () => {
         dashStaffPills.querySelectorAll('.pill-filter').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        const nextStaff = btn.dataset.dashStaff || '';
         const fStaffSel = document.getElementById('f-staff');
-        if (fStaffSel) fStaffSel.value = btn.dataset.dashStaff || '';
+        if (fStaffSel) fStaffSel.value = nextStaff;
+        if (nextStaff && state.activeSection && Array.isArray(state.allStudents)) {
+          const hasSectionForStaff = state.allStudents.some(
+            (s) => String(s.assigned_staff_id) === String(nextStaff) && s.exam_category === state.activeSection
+          );
+          if (!hasSectionForStaff) {
+            state.activeSection = '';
+            document.querySelectorAll('.section-tab').forEach((t) => {
+              t.classList.toggle('active', (t.dataset.section || '') === '');
+            });
+          }
+        }
         filterDashboardStudentsInMemory();
         loadDashboardAndQueue();
       });
