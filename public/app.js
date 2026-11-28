@@ -331,7 +331,7 @@ function renderKpis(stats) {
   });
 }
 
-function renderStudentsTable(rows) {
+function renderStudentsTable(rows = state.students || []) {
   const isSupOrAdmin = state.user.role === 'ADMIN' || state.user.role === 'SUPERVISOR';
   const tbody = document.getElementById('students-tbody');
   if (rows.length === 0) {
@@ -494,7 +494,7 @@ function renderStudentsTable(rows) {
             }
           : s
       );
-      renderStudentsTable();
+      renderStudentsTable(state.students);
       showToast('↩ Call reverted to Pending');
 
       try {
@@ -505,7 +505,7 @@ function renderStudentsTable(rows) {
         loadDashboardAndQueue();
       } catch (err) {
         state.students = prevStudents;
-        renderStudentsTable();
+        renderStudentsTable(state.students);
         showToast(err.message);
       }
     });
@@ -576,7 +576,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
       last_called_at: new Date().toISOString(),
     };
   });
-  renderStudentsTable();
+  renderStudentsTable(state.students);
   if (isAttended) {
     showToast('✅ Saved: Attended');
   }
@@ -622,7 +622,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
     }
   } catch (err) {
     state.students = prevStudents;
-    renderStudentsTable();
+    renderStudentsTable(state.students);
     showToast(err.message);
   }
 }
