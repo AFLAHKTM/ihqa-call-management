@@ -37,6 +37,14 @@ async function api(url, options = {}) {
   return data;
 }
 
+const ICONS = {
+  sun: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+  phone: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+  check: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  x: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  edit: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+};
+
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -156,7 +164,7 @@ async function enterApp() {
     );
     const timeGreeting =
       istHour < 12 ? 'Good Morning' : istHour < 17 ? 'Good Afternoon' : 'Good Evening';
-    greetingEl.textContent = `👋 Hey ${greetName}, ${timeGreeting}`;
+    greetingEl.innerHTML = `${ICONS.sun}<span>Hey ${escapeHtml(greetName)}, ${timeGreeting}</span>`;
     greetingEl.classList.remove('hidden');
   }
   applyRoleVisibility();
@@ -602,12 +610,12 @@ function renderStudentsTable(rows = state.students || []) {
         primary.communication_status === 'Follow-up Completed';
       const actionHtml = isAttended
         ? `<div class="row-action-btns is-attended">
-            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">✅ Attended</button>
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">${ICONS.check} Attended</button>
             <button type="button" class="btn btn-sm row-undo-btn undo-call-row-btn" data-ids="${allIds.join(',')}" title="Undo Attended — Revert to previous status">↩ Undo</button>
           </div>`
         : `<div class="row-action-btns">
-            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">✅ Attend</button>
-            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
+            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">${ICONS.check} Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">${ICONS.x} Unattend</button>
           </div>`;
 
       const pdfMatch = String(primary.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
@@ -1321,7 +1329,7 @@ function renderApprovedDated(rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">WhatsApp</a>` : '<span class="muted">No phone</span>'}
             ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
           </div>
         </td>
@@ -1336,7 +1344,7 @@ function renderApprovedDated(rows) {
           <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(formatIstTime(approvedAt))}</span>
         </td>
         <td data-label="Status">
-          <span class="badge badge-success">✅ Attended</span>
+          <span class="badge badge-success">${ICONS.check} Attended</span>
         </td>
         <td data-label="Transfer to Monday or Tuesday">
           <div class="day-transfer-btns ${isMon || isTue ? 'is-scheduled' : ''}">
@@ -1520,7 +1528,7 @@ function renderScheduledDay(day, rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">WhatsApp</a>` : '<span class="muted">No phone</span>'}
             ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
           </div>
         </td>
@@ -1703,12 +1711,12 @@ function renderUnuploadedCampuses(rows) {
 
       const actionHtml = isAttended
         ? `<div class="row-action-btns is-attended">
-            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">✅ Attended</button>
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">${ICONS.check} Attended</button>
             <button type="button" class="btn btn-sm row-undo-btn u-undo-btn" data-id="${c.id}" title="Undo Attended — Revert to previous status">↩ Undo</button>
           </div>`
         : `<div class="row-action-btns">
-            <button type="button" class="btn btn-sm row-attend-btn u-attend-btn" data-id="${c.id}" title="Mark call attended and save">✅ Attend</button>
-            <button type="button" class="btn btn-sm row-unattend-btn u-unattend-btn" data-id="${c.id}" data-label="${escapeHtml(c.institution_name)}" title="Select unattended reason and save">❌ Unattend</button>
+            <button type="button" class="btn btn-sm row-attend-btn u-attend-btn" data-id="${c.id}" title="Mark call attended and save">${ICONS.check} Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn u-unattend-btn" data-id="${c.id}" data-label="${escapeHtml(c.institution_name)}" title="Select unattended reason and save">${ICONS.x} Unattend</button>
           </div>`;
 
       const subBadgeClass =
@@ -1734,8 +1742,8 @@ function renderUnuploadedCampuses(rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(c.supervisor_name || '-')}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(c.supervisor_phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
-            <button type="button" class="sup-edit-btn u-edit-btn" data-id="${c.id}" title="Edit institution or contact details">✏️ Edit</button>
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(c.supervisor_phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            <button type="button" class="sup-edit-btn u-edit-btn" data-id="${c.id}" title="Edit institution or contact details">${ICONS.edit} Edit</button>
             ${c.supervisor_email ? `<span class="sup-email"> · ${escapeHtml(c.supervisor_email)}</span>` : ''}
           </div>
         </td>

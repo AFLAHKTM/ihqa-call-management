@@ -820,6 +820,18 @@ input:focus, select:focus, textarea:focus {
   font-weight: 600;
 }
 .mobile-only-btn { display: none; }
+.ui-icon {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: -2.5px;
+  flex-shrink: 0;
+}
+.greeting-banner .ui-icon {
+  width: 20px;
+  height: 20px;
+  vertical-align: -3px;
+}
 .row-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .day-transfer-btns { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
 .day-transfer-btns .btn { white-space: nowrap; min-height: 34px; padding: 6px 12px; font-size: 13px; }
