@@ -1707,12 +1707,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const doLogout = async () => {
-    await api('/api/auth/logout', { method: 'POST' });
     state.user = null;
     state.students = [];
     state.unuploadedCampuses = [];
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
+    try {
+      await api('/api/auth/logout', { method: 'POST' });
+    } catch (_) {}
   };
   document.getElementById('logout-btn').addEventListener('click', doLogout);
   document.getElementById('topbar-logout-btn')?.addEventListener('click', doLogout);

@@ -63,18 +63,24 @@ router.post('/login', (req, res) => {
   });
 });
 
-router.post('/logout', requireAuth, (req, res) => {
-  logAudit(
-    {
-      user: req.user,
-      action: 'LOGOUT',
-      entityType: 'auth',
-      entityId: req.user.id,
-      ipAddress: req.ip,
-    },
-    getDb()
-  );
-  res.clearCookie(config.sessionCookieName, { path: '/' });
+router.post('/logout', (req, res) => {
+  if (req.user) {
+    logAudit(
+      {
+        user: req.user,
+        action: 'LOGOUT',
+        entityType: 'auth',
+        entityId: req.user.id,
+        ipAddress: req.ip,
+      },
+      getDb()
+    );
+  }
+  res.clearCookie(config.sessionCookieName, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+  });
   res.json({ ok: true });
 });
 
