@@ -38,6 +38,12 @@ function createApp() {
       } catch (err) {
         console.warn('Cloud sync pull warning:', err.message);
       }
+    } else if (config.isVercel) {
+      try {
+        await pullIfNewer(false, 2000);
+      } catch (err) {
+        console.warn('Cloud sync pull warning:', err.message);
+      }
     } else {
       pullIfNewer(false).catch((err) => console.warn('Cloud sync background pull warning:', err.message));
     }

@@ -202,7 +202,7 @@ async function pullIfNewer(force = false, minAgeMs = 30000) {
   if (!force && now - lastCheckAt < minAgeMs) {
     return { pulled: false, throttled: true };
   }
-  if (force && now - lastCheckAt < 3000) {
+  if (force && now - lastCheckAt < 1000) {
     return { pulled: false, throttled: true };
   }
 
@@ -211,7 +211,7 @@ async function pullIfNewer(force = false, minAgeMs = 30000) {
     if (!force && innerNow - lastCheckAt < minAgeMs) {
       return { pulled: false, throttled: true };
     }
-    if (force && innerNow - lastCheckAt < 3000) {
+    if (force && innerNow - lastCheckAt < 1000) {
       return { pulled: false, throttled: true };
     }
 

@@ -639,17 +639,25 @@ function renderStudentsTable(rows = state.students || []) {
         new Date(primary.next_followup_at.replace(' ', 'T') + 'Z').getTime() < Date.now() &&
         ['Pending Second Call', 'Pending Third Call', 'Callback Scheduled'].includes(primary.communication_status);
 
-      const isAttended =
-        primary.communication_status === 'Successfully Contacted' ||
-        primary.communication_status === 'Follow-up Completed';
-      const actionHtml = isAttended
+      const allAttended = sortedItems.every(
+        (i) => i.communication_status === 'Successfully Contacted' || i.communication_status === 'Follow-up Completed'
+      );
+      const anyAttended = sortedItems.some(
+        (i) => i.communication_status === 'Successfully Contacted' || i.communication_status === 'Follow-up Completed'
+      );
+      const attendedCount = sortedItems.filter(
+        (i) => i.communication_status === 'Successfully Contacted' || i.communication_status === 'Follow-up Completed'
+      ).length;
+
+      const actionHtml = allAttended
         ? `<div class="row-action-btns is-attended">
-            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">${ICONS.check} Attended</button>
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="All winners at this campus marked as Attended">${ICONS.check} Attended</button>
             <button type="button" class="btn btn-sm row-undo-btn undo-call-row-btn" data-ids="${allIds.join(',')}" title="Undo Attended — Revert to previous status">↩ Undo</button>
           </div>`
         : `<div class="row-action-btns">
-            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">${ICONS.check} Attend</button>
+            <button type="button" class="btn btn-sm row-attend-btn quick-save-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-outcome="Successfully Contacted" title="Mark call attended and save">${ICONS.check} ${anyAttended ? `Attend Remaining (${attendedCount}/${sortedItems.length})` : 'Attend'}</button>
             <button type="button" class="btn btn-sm row-unattend-btn open-unattend-row-btn" data-ids="${allIds.join(',')}" data-contact="${primaryType}" data-label="${escapeHtml(g.institution_name)}" title="Select unattended reason and save">${ICONS.x} Unattend</button>
+            ${anyAttended ? `<button type="button" class="btn btn-sm row-undo-btn undo-call-row-btn" data-ids="${allIds.join(',')}" title="Undo Attended — Revert to previous status">↩ Undo</button>` : ''}
           </div>`;
 
       const pdfMatch = String(primary.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
@@ -718,15 +726,31 @@ function renderStudentsTable(rows = state.students || []) {
         .map(Number);
       const prevStudents = (state.students || []).map((s) => ({ ...s }));
       const idSet = new Set(ids);
-      state.students = (state.students || []).map((s) =>
-        idSet.has(Number(s.id))
-          ? {
-              ...s,
-              communication_status: Number(s.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call',
-              last_call_outcome: null,
-            }
-          : s
-      );
+      const updateUndoList = (list) =>
+        (list || []).map((s) =>
+          idSet.has(Number(s.id))
+            ? {
+                ...s,
+                communication_status: Number(s.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call',
+                last_call_outcome: null,
+              }
+            : s
+        );
+
+      state.students = updateUndoList(state.students);
+      if (Array.isArray(state.allStudents)) {
+        state.allStudents = updateUndoList(state.allStudents);
+      }
+      const dashCacheKey = state.user?.id ? `ihqa_dash_cache_${state.user.id}` : null;
+      if (dashCacheKey) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(dashCacheKey) || 'null');
+          if (cached?.listData) {
+            cached.listData.rows = state.students;
+            localStorage.setItem(dashCacheKey, JSON.stringify(cached));
+          }
+        } catch (_) {}
+      }
       renderStudentsTable(state.students);
       showToast('↩ Call reverted to Pending');
 
@@ -746,6 +770,9 @@ function renderStudentsTable(rows = state.students || []) {
           .catch(() => null);
       } catch (err) {
         state.students = prevStudents;
+        if (Array.isArray(state.allStudents)) {
+          state.allStudents = prevStudents;
+        }
         renderStudentsTable(state.students);
         showToast(err.message);
       }
@@ -805,18 +832,50 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
   const idSet = new Set(studentIds.map(Number));
   const isAttended = callOutcome === 'Successfully Contacted';
 
+  // If attending, target students that are not yet contacted (or all if none are contacted)
+  const pendingIds = isAttended
+    ? studentIds.filter((sid) => {
+        const match = (state.students || []).find((x) => Number(x.id) === Number(sid));
+        return (
+          !match ||
+          (match.communication_status !== 'Successfully Contacted' &&
+            match.communication_status !== 'Follow-up Completed')
+        );
+      })
+    : studentIds;
+  const idsToProcess = pendingIds.length > 0 ? pendingIds : studentIds;
+
   // Optimistic instant UI update (<2ms)
-  state.students = (state.students || []).map((s) => {
-    if (!idSet.has(Number(s.id))) return s;
-    const nextAttempts = isAttended ? s.valid_attempt_count : Number(s.valid_attempt_count || 0) + 1;
-    return {
-      ...s,
-      communication_status: isAttended ? 'Successfully Contacted' : 'Not Connected / Retrying',
-      last_call_outcome: callOutcome,
-      valid_attempt_count: nextAttempts,
-      last_called_at: new Date().toISOString(),
-    };
-  });
+  const updateStudentList = (list) =>
+    (list || []).map((s) => {
+      if (!idSet.has(Number(s.id))) return s;
+      const nextAttempts = isAttended
+        ? s.valid_attempt_count
+        : Number(s.valid_attempt_count || 0) + 1;
+      return {
+        ...s,
+        communication_status: isAttended ? 'Successfully Contacted' : 'Not Connected / Retrying',
+        last_call_outcome: callOutcome,
+        valid_attempt_count: nextAttempts,
+        last_called_at: new Date().toISOString(),
+      };
+    });
+
+  state.students = updateStudentList(state.students);
+  if (Array.isArray(state.allStudents)) {
+    state.allStudents = updateStudentList(state.allStudents);
+  }
+  const dashCacheKey = state.user?.id ? `ihqa_dash_cache_${state.user.id}` : null;
+  if (dashCacheKey) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(dashCacheKey) || 'null');
+      if (cached?.listData) {
+        cached.listData.rows = state.students;
+        localStorage.setItem(dashCacheKey, JSON.stringify(cached));
+      }
+    } catch (_) {}
+  }
+
   renderStudentsTable(state.students);
   if (isAttended) {
     showToast('✅ Saved: Attended');
@@ -824,7 +883,7 @@ async function quickSaveCallOutcome(studentIds, callOutcome, contactType = 'coor
 
   try {
     const results = await Promise.all(
-      studentIds.map((sid, idx) =>
+      idsToProcess.map((sid, idx) =>
         api(`/api/students/${sid}/calls`, {
           method: 'POST',
           body: JSON.stringify({
@@ -1832,6 +1891,16 @@ function renderUnuploadedCampuses(rows) {
             }
           : c
       );
+      const campCacheKey = state.user?.id ? `ihqa_campuses_cache_${state.user.id}` : null;
+      if (campCacheKey) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(campCacheKey) || 'null');
+          if (cached?.rows) {
+            cached.rows = state.unuploadedCampuses;
+            localStorage.setItem(campCacheKey, JSON.stringify(cached));
+          }
+        } catch (_) {}
+      }
       renderUnuploadedCampuses(state.unuploadedCampuses);
       showToast('↩ Campus call reverted to Pending');
 
@@ -1901,6 +1970,16 @@ async function quickSaveCampusCall(campusId, callOutcome) {
         }
       : c
   );
+  const campCacheKey = state.user?.id ? `ihqa_campuses_cache_${state.user.id}` : null;
+  if (campCacheKey) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(campCacheKey) || 'null');
+      if (cached?.rows) {
+        cached.rows = state.unuploadedCampuses;
+        localStorage.setItem(campCacheKey, JSON.stringify(cached));
+      }
+    } catch (_) {}
+  }
   renderUnuploadedCampuses(state.unuploadedCampuses);
   if (isAttended) {
     showToast('✅ Saved: Attended');
@@ -2146,6 +2225,16 @@ function renderKeralaSafar(rows) {
             }
           : r
       );
+      const safarCacheKey = state.user?.id ? `ihqa_safar_cache_${state.user.id}` : null;
+      if (safarCacheKey) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(safarCacheKey) || 'null');
+          if (cached?.rows) {
+            cached.rows = state.safarCampuses;
+            localStorage.setItem(safarCacheKey, JSON.stringify(cached));
+          }
+        } catch (_) {}
+      }
       renderKeralaSafar(state.safarCampuses);
       showToast('↩ Call reverted to Pending');
       try {
@@ -2173,6 +2262,16 @@ async function quickSaveSafarCall(safarId, callOutcome) {
         }
       : r
   );
+  const safarCacheKey = state.user?.id ? `ihqa_safar_cache_${state.user.id}` : null;
+  if (safarCacheKey) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(safarCacheKey) || 'null');
+      if (cached?.rows) {
+        cached.rows = state.safarCampuses;
+        localStorage.setItem(safarCacheKey, JSON.stringify(cached));
+      }
+    } catch (_) {}
+  }
   renderKeralaSafar(state.safarCampuses);
   showToast(isAttended ? 'Saved: Attended' : `Saved: ${callOutcome}`);
 

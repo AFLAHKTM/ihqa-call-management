@@ -466,10 +466,21 @@ router.post('/undo-calls', async (req, res) => {
       const student = getStudentById(Number(sid), db);
       if (!student) continue;
       if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
-        continue;
+        const sibling = student.institution_name
+          ? db
+              .prepare(
+                'SELECT id FROM students WHERE institution_name = ? AND assigned_staff_id = ? LIMIT 1'
+              )
+              .get(student.institution_name, req.user.id)
+          : null;
+        if (!sibling) continue;
       }
-      const updated = undoLastCallAttempt(Number(sid), req.user, db);
-      results.push(updated);
+      try {
+        const updated = undoLastCallAttempt(Number(sid), req.user, db);
+        results.push(updated);
+      } catch (_) {
+        // Gracefully ignore students that had no prior attempt in a batch
+      }
     }
     res.json({ ok: true, count: results.length, students: results });
   } catch (err) {
@@ -482,7 +493,16 @@ router.post('/:id/calls/undo', async (req, res) => {
   const student = getStudentById(Number(req.params.id), db);
   if (!student) return res.status(404).json({ error: 'Student not found' });
   if (req.user.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== req.user.id) {
-    return res.status(403).json({ error: 'Forbidden' });
+    const sibling = student.institution_name
+      ? db
+          .prepare(
+            'SELECT id FROM students WHERE institution_name = ? AND assigned_staff_id = ? LIMIT 1'
+          )
+          .get(student.institution_name, req.user.id)
+      : null;
+    if (!sibling) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
   }
   try {
     const updated = undoLastCallAttempt(Number(req.params.id), req.user, db);

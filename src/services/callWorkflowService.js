@@ -383,10 +383,20 @@ async function logCallAttempt(
   if (!student) throw new Error('Student not found');
 
   // RBAC guard: Calling staff can only log calls for students assigned to them
+  // (or students belonging to the same institution if assigned to at least one winner there)
   if (staffUser.role === ROLES.CALLING_STAFF && student.assigned_staff_id !== staffUser.id) {
-    const err = new Error('Forbidden: student is not assigned to this calling staff member');
-    err.statusCode = 403;
-    throw err;
+    const siblingAssigned = student.institution_name
+      ? db
+          .prepare(
+            'SELECT id FROM students WHERE institution_name = ? AND assigned_staff_id = ? LIMIT 1'
+          )
+          .get(student.institution_name, staffUser.id)
+      : null;
+    if (!siblingAssigned) {
+      const err = new Error('Forbidden: student is not assigned to this calling staff member');
+      err.statusCode = 403;
+      throw err;
+    }
   }
 
   if (isValidAttempt && !CALL_OUTCOMES.includes(callOutcome)) {

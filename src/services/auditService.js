@@ -1,12 +1,19 @@
 const { getDb } = require('../db/database');
 
 function logAudit({ user = null, action, entityType, entityId = null, details = null, ipAddress = null }, db = getDb()) {
+  let validUserId = null;
+  if (user?.id) {
+    try {
+      const exists = db.prepare('SELECT id FROM users WHERE id = ?').get(user.id);
+      if (exists) validUserId = exists.id;
+    } catch (_) {}
+  }
   const stmt = db.prepare(`
     INSERT INTO audit_logs (user_id, username, action, entity_type, entity_id, details_json, ip_address)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
-    user?.id ?? null,
+    validUserId,
     user?.username ?? (user ? String(user) : 'system'),
     action,
     entityType,
