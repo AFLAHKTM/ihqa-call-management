@@ -151,7 +151,12 @@ async function enterApp() {
   const greetingEl = document.getElementById('topbar-greeting');
   if (greetingEl) {
     const greetName = state.user.role === 'ADMIN' ? 'Admin' : state.user.full_name;
-    greetingEl.textContent = `👋 Hey ${greetName}`;
+    const istHour = Number(
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false })
+    );
+    const timeGreeting =
+      istHour < 12 ? 'Good Morning' : istHour < 17 ? 'Good Afternoon' : 'Good Evening';
+    greetingEl.textContent = `👋 Hey ${greetName}, ${timeGreeting}`;
     greetingEl.classList.remove('hidden');
   }
   applyRoleVisibility();
