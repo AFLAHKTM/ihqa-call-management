@@ -832,7 +832,35 @@ input:focus, select:focus, textarea:focus {
   height: 20px;
   vertical-align: -3px;
 }
-.row-action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.row-action-btns { display: flex; gap: 6px; flex-wrap: nowrap; align-items: center; }
+.row-action-btns .btn { white-space: nowrap; min-height: 32px; padding: 5px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.sup-contact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.sup-phone-link,
+.sup-wa-link,
+.sup-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.sup-email {
+  width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.open-desk-btn {
+  white-space: nowrap;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+.data-table td { vertical-align: middle; }
 .day-transfer-btns { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
 .day-transfer-btns .btn { white-space: nowrap; min-height: 34px; padding: 6px 12px; font-size: 13px; }
 .day-transfer-badge {

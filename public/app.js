@@ -43,6 +43,7 @@ const ICONS = {
   check: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
   x: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   edit: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  message: '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
 };
 
 function escapeHtml(str) {
@@ -631,8 +632,8 @@ function renderStudentsTable(rows = state.students || []) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(g.coordinator_name || primary.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(primaryPhone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
-            ${g.coordinator_email ? `<span class="sup-email"> · ${escapeHtml(g.coordinator_email)}</span>` : ''}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(primaryPhone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">${ICONS.message} WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${g.coordinator_email ? `<div class="sup-email">${escapeHtml(g.coordinator_email)}</div>` : ''}
           </div>
         </td>
         <td data-label="Students" class="num-col">
@@ -1329,8 +1330,8 @@ function renderApprovedDated(rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">WhatsApp</a>` : '<span class="muted">No phone</span>'}
-            ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">${ICONS.message} WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${email ? `<div class="sup-email">${escapeHtml(email)}</div>` : ''}
           </div>
         </td>
         <td data-label="Category & Winner">
@@ -1528,8 +1529,8 @@ function renderScheduledDay(day, rows) {
         <td data-label="Supervisor & Contact">
           <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
           <div class="sup-contact">
-            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">WhatsApp</a>` : '<span class="muted">No phone</span>'}
-            ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">${ICONS.message} WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${email ? `<div class="sup-email">${escapeHtml(email)}</div>` : ''}
           </div>
         </td>
         <td data-label="Category & Winner">
