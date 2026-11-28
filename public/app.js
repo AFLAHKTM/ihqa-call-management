@@ -112,37 +112,27 @@ async function enterApp() {
     greetingEl.classList.remove('hidden');
   }
   applyRoleVisibility();
-  await loadAllData();
   if (['kashif', 'salman', 'suhail'].includes(state.user.username)) {
     switchView('unuploaded');
+    await loadNotifications();
+  } else {
+    await loadAllData();
   }
 }
 
 async function loadAllData() {
-  await Promise.all([
-    loadDashboardAndQueue(),
-    loadNotifications(),
-    api('/api/campuses?limit=1')
-      .then((campusMeta) => {
-        if (campusMeta?.overallTotal !== undefined || campusMeta?.stats) {
-          const badge = document.getElementById('nav-unuploaded-badge');
-          if (badge) badge.textContent = campusMeta.overallTotal ?? campusMeta.stats.total;
-        }
-      })
-      .catch(() => null),
-    api('/api/students/approved-dated')
-      .then((appMeta) => {
-        if (appMeta?.overallTotal !== undefined) {
-          const badge = document.getElementById('nav-approved-badge');
-          if (badge) badge.textContent = appMeta.overallTotal;
-        }
-      })
-      .catch(() => null),
-    refreshDayBadges(),
-  ]);
+  await Promise.all([loadDashboardAndQueue(), loadNotifications()]);
 }
 
 async function loadDashboardAndQueue() {
+  const tbody = document.getElementById('students-tbody');
+  const queueBadge = document.getElementById('queue-count-badge');
+  if (tbody && !state.students.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Loading records...</td></tr>';
+  }
+  if (queueBadge && !state.students.length) {
+    queueBadge.textContent = '...';
+  }
   const params = new URLSearchParams();
   const fQuickSearch = document.getElementById('f-quick-search')?.value?.trim();
   const fDistrict = document.getElementById('f-district').value;
@@ -173,6 +163,16 @@ async function loadDashboardAndQueue() {
   ]);
 
   state.filtersMeta = summary.filtersMeta;
+  if (summary.navBadges) {
+    const uBadge = document.getElementById('nav-unuploaded-badge');
+    if (uBadge) uBadge.textContent = summary.navBadges.unuploadedTotal ?? 0;
+    const aBadge = document.getElementById('nav-approved-badge');
+    if (aBadge) aBadge.textContent = summary.navBadges.approvedTotal ?? 0;
+    applyDayBadgeCounts(
+      Number(summary.navBadges.mondayTotal ?? 0),
+      Number(summary.navBadges.tuesdayTotal ?? 0)
+    );
+  }
   state.workflowConfig = summary.workflowConfig;
   state.lastStats = summary.stats;
   state.students = listData.rows;

@@ -64,11 +64,43 @@ router.get('/summary', (req, res) => {
       ? sectionCounts.all
       : db.prepare('SELECT COUNT(*) AS c FROM students').get().c;
 
+  const isStaff = req.user.role === 'CALLING_STAFF';
+  const unuploadedTotal = isStaff
+    ? db.prepare('SELECT COUNT(*) AS c FROM unuploaded_campuses WHERE assigned_staff_id = ?').get(req.user.id).c
+    : db.prepare('SELECT COUNT(*) AS c FROM unuploaded_campuses').get().c;
+  const approvedTotal = isStaff
+    ? db
+        .prepare(
+          "SELECT COUNT(*) AS c FROM students WHERE communication_status IN ('Successfully Contacted', 'Follow-up Completed') AND assigned_staff_id = ?"
+        )
+        .get(req.user.id).c
+    : db
+        .prepare(
+          `SELECT COUNT(*) AS c
+           FROM students s
+           JOIN users u ON u.id = s.assigned_staff_id
+           WHERE s.communication_status IN ('Successfully Contacted', 'Follow-up Completed')
+             AND u.username IN ('shahid_adany', 'usman_adany', 'saeed_adany')`
+        )
+        .get().c;
+  const mondayTotal = isStaff
+    ? db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Monday' AND assigned_staff_id = ?").get(req.user.id).c
+    : db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Monday'").get().c;
+  const tuesdayTotal = isStaff
+    ? db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Tuesday' AND assigned_staff_id = ?").get(req.user.id).c
+    : db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Tuesday'").get().c;
+
   res.json({
     stats,
     sectionCounts,
     staffBreakdown,
     overallTotal,
+    navBadges: {
+      unuploadedTotal,
+      approvedTotal,
+      mondayTotal,
+      tuesdayTotal,
+    },
     filtersMeta: {
       districts: districts.length ? districts : KERALA_DISTRICTS,
       institutions,
