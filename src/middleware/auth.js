@@ -14,9 +14,15 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Authentication required. Student contact records are restricted to authorised staff.' });
   }
 
-  const user = getDb()
+  const db = getDb();
+  let user = db
     .prepare('SELECT id, username, full_name, email, phone, role, daily_target, is_active FROM users WHERE id = ?')
     .get(payload.userId);
+  if (!user && payload.username) {
+    user = db
+      .prepare('SELECT id, username, full_name, email, phone, role, daily_target, is_active FROM users WHERE username = ?')
+      .get(payload.username);
+  }
 
   if (!user || !user.is_active) {
     return res.status(401).json({ error: 'Account inactive or invalid session' });

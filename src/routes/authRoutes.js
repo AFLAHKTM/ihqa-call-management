@@ -31,7 +31,7 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const token = signSessionToken({ userId: user.id, role: user.role });
+  const token = signSessionToken({ userId: user.id, username: user.username, role: user.role });
   res.cookie(config.sessionCookieName, token, {
     httpOnly: true,
     sameSite: 'lax',
