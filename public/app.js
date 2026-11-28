@@ -41,6 +41,26 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function formatIstTime(ts) {
+  if (!ts) return '-';
+  const raw = String(ts).trim();
+  const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+    ? `${raw.replace(' ', 'T')}Z`
+    : raw;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+}
+
 function buildWhatsAppUrl(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
   if (!digits) return '';
@@ -809,7 +829,7 @@ async function openCallingDesk(studentId, activeSession = null) {
           (h) => `<div class="history-item">
             <div style="display:flex;justify-content:space-between;gap:8px">
               <strong>${h.is_valid_attempt ? (h.attempt_number ? `Attempt #${h.attempt_number}` : 'Diagnostic Attempt') : 'Unlogged / Cancelled Initiation'} — ${escapeHtml(h.call_outcome || h.telephony_status)}</strong>
-              <span class="muted">${escapeHtml(h.called_at)}</span>
+              <span class="muted">${escapeHtml(formatIstTime(h.called_at))}</span>
             </div>
             <div class="muted">Staff: ${escapeHtml(h.staff_name)} · Number: ${escapeHtml(h.contact_number_called)} (${escapeHtml(h.contact_type)}) ${h.call_duration_seconds ? `· Duration: ${h.call_duration_seconds}s` : ''}</div>
             ${h.followup_date ? `<div>Follow-up Scheduled: ${escapeHtml(h.followup_date)}</div>` : ''}
@@ -1069,7 +1089,7 @@ async function loadSettingsAndAudit() {
   document.getElementById('audit-tbody').innerHTML = audit.rows
     .map(
       (a) => `<tr>
-        <td class="small">${escapeHtml(a.created_at)}</td>
+        <td class="small">${escapeHtml(formatIstTime(a.created_at))}</td>
         <td class="small">${escapeHtml(a.username || 'system')}</td>
         <td><span class="badge badge-neutral">${escapeHtml(a.action)}</span></td>
         <td class="small">${escapeHtml(a.entity_type)} #${escapeHtml(a.entity_id || '')}</td>
@@ -1215,7 +1235,7 @@ function renderApprovedDated(rows) {
           <span class="badge badge-neutral">${escapeHtml(s.assigned_staff_name || '-')}</span>
         </td>
         <td data-label="Approved Date">
-          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
+          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(formatIstTime(approvedAt))}</span>
         </td>
         <td data-label="Status">
           <span class="badge badge-success">✅ Attended</span>
@@ -1414,7 +1434,7 @@ function renderScheduledDay(day, rows) {
           <span class="badge badge-neutral">${escapeHtml(s.assigned_staff_name || '-')}</span>
         </td>
         <td data-label="Approved Date">
-          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
+          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(formatIstTime(approvedAt))}</span>
         </td>
         <td data-label="Actions">
           <div class="day-transfer-btns">
