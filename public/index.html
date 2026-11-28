@@ -77,6 +77,10 @@
           <span>Call for Tuesday</span>
           <span id="nav-tuesday-badge" class="pill-count">0</span>
         </button>
+        <button class="nav-item" data-view="kerala-safar">
+          <span>Kerala Safar</span>
+          <span id="nav-safar-badge" class="pill-count">349</span>
+        </button>
         <button class="nav-item" data-view="followups">
           <span>Callbacks &amp; Follow-Ups</span>
         </button>
@@ -292,6 +296,51 @@
                 </tr>
               </thead>
               <tbody id="unuploaded-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: KERALA SAFAR -->
+      <section id="view-kerala-safar" class="view-section hidden">
+        <div id="safar-kpi-grid" class="kpi-grid" style="margin-bottom:14px"></div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Kerala Safar — Campus Call Panel</h3>
+              <div class="muted small">349 campuses across 19 Kerala Safar days (Malappuram, Kasaragod, Kannur, Wayanad, TVM, Kollam, Alappuzha, PTA, Kottayam, Idukki, Palakkad)</div>
+            </div>
+            <div class="header-actions">
+              <span id="safar-total-label" class="badge badge-neutral">0 campuses</span>
+            </div>
+          </div>
+
+          <div class="filters-bar" style="margin-bottom:12px">
+            <input type="text" id="safar-filter-search" placeholder="Search campus, place, contact person, number..." />
+            <select id="safar-filter-day">
+              <option value="">All Safar Days</option>
+            </select>
+            <select id="safar-filter-status">
+              <option value="">All Statuses</option>
+              <option value="PENDING_ALL">Pending Calls</option>
+              <option value="Successfully Contacted">Attended</option>
+              <option value="UNATTENDED">Unattended (1+ Attempts)</option>
+              <option value="CALLS_MADE">Calls Made</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Campus &amp; Safar Day</th>
+                  <th>Contact Person &amp; Number</th>
+                  <th>Course &amp; Students</th>
+                  <th>Call Status &amp; Action</th>
+                </tr>
+              </thead>
+              <tbody id="safar-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -984,6 +1033,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20261128b"></script>
+  <script src="/app.js?v=20261128c"></script>
 </body>
 </html>

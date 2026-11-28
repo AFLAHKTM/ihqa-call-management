@@ -183,6 +183,28 @@ CREATE TABLE IF NOT EXISTS campus_call_attempts (
   called_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS kerala_safar_campuses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  serial_no INTEGER NOT NULL,
+  safar_day TEXT NOT NULL,
+  campus_name TEXT NOT NULL,
+  place TEXT,
+  contact_person TEXT,
+  contact_number TEXT,
+  contact_person_2 TEXT,
+  contact_number_2 TEXT,
+  course TEXT,
+  students_count INTEGER,
+  pdf_status TEXT,
+  communication_status TEXT NOT NULL DEFAULT 'Pending First Call',
+  valid_attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_call_outcome TEXT,
+  last_called_at TEXT,
+  notes_summary TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_students_district ON students(district);
 CREATE INDEX IF NOT EXISTS idx_students_institution ON students(institution_name);
 CREATE INDEX IF NOT EXISTS idx_students_staff ON students(assigned_staff_id);
@@ -194,6 +216,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(target_user_i
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_unuploaded_district ON unuploaded_campuses(district);
 CREATE INDEX IF NOT EXISTS idx_unuploaded_status ON unuploaded_campuses(communication_status);
+CREATE INDEX IF NOT EXISTS idx_safar_day ON kerala_safar_campuses(safar_day);
+CREATE INDEX IF NOT EXISTS idx_safar_status ON kerala_safar_campuses(communication_status);
 `;
 
 const DEFAULT_SETTINGS = {
@@ -349,6 +373,41 @@ function ensureStaffAndSplitUnuploaded(db) {
       assignStmt.run(targetStaff, unassigned[i].id);
     }
     db.exec('COMMIT');
+  }
+
+  try {
+    const existingSafar = db.prepare('SELECT COUNT(*) AS cnt FROM kerala_safar_campuses').get().cnt;
+    if (existingSafar === 0) {
+      const { KERALA_SAFAR_CAMPUSES } = require('./keralaSafarData');
+      const insertSafar = db.prepare(
+        `INSERT INTO kerala_safar_campuses (
+          serial_no, safar_day, campus_name, place,
+          contact_person, contact_number, contact_person_2, contact_number_2,
+          course, students_count, pdf_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      );
+      db.exec('BEGIN');
+      for (const s of KERALA_SAFAR_CAMPUSES) {
+        insertSafar.run(
+          s.serial_no,
+          s.safar_day,
+          s.campus_name || s.place || `Campus #${s.serial_no}`,
+          s.place || '',
+          s.contact_person || '',
+          s.contact_number || '',
+          s.contact_person_2 || '',
+          s.contact_number_2 || '',
+          s.course || '',
+          s.students_count !== undefined ? Number(s.students_count) : null,
+          s.pdf_status || ''
+        );
+      }
+      db.exec('COMMIT');
+    }
+  } catch (_) {
+    try {
+      db.exec('ROLLBACK');
+    } catch (_e) {}
   }
 }
 

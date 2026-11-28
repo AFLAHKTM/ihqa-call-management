@@ -10,6 +10,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const telephonyRoutes = require('./routes/telephonyRoutes');
 const campusRoutes = require('./routes/campusRoutes');
+const safarRoutes = require('./routes/safarRoutes');
 const config = require('./config');
 const { pullIfNewer, pushSnapshot } = require('./services/cloudSyncService');
 
@@ -77,6 +78,7 @@ function createApp() {
   app.use('/api/settings', settingsRoutes);
   app.use('/api/telephony', telephonyRoutes);
   app.use('/api/campuses', campusRoutes);
+  app.use('/api/safar', safarRoutes);
 
   app.use(express.static(path.join(__dirname, '..', 'public')));
 

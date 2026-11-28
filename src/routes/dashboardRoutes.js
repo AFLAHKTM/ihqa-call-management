@@ -97,6 +97,7 @@ router.get('/summary', (req, res) => {
   const tuesdayTotal = isStaff
     ? db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Tuesday' AND assigned_staff_id = ?").get(req.user.id).c
     : db.prepare("SELECT COUNT(*) AS c FROM students WHERE scheduled_call_day = 'Tuesday'").get().c;
+  const safarTotal = db.prepare('SELECT COUNT(*) AS c FROM kerala_safar_campuses').get().c;
 
   res.json({
     stats,
@@ -108,6 +109,7 @@ router.get('/summary', (req, res) => {
       approvedTotal,
       mondayTotal,
       tuesdayTotal,
+      safarTotal,
     },
     filtersMeta: {
       districts: districts.length ? districts : KERALA_DISTRICTS,

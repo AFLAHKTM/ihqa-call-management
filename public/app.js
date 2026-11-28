@@ -176,6 +176,7 @@ function startRealtimeSync() {
     const v = state.activeView || 'dashboard';
     if (v === 'dashboard') loadDashboardAndQueue();
     else if (v === 'unuploaded') loadUnuploadedCampuses();
+    else if (v === 'kerala-safar') loadKeralaSafar();
     else if (v === 'approved-dated') loadApprovedDated();
     else if (v === 'call-monday') loadScheduledDay('Monday');
     else if (v === 'call-tuesday') loadScheduledDay('Tuesday');
@@ -275,6 +276,8 @@ function applyDashboardPayload(summary, listData) {
     if (uBadge) uBadge.textContent = summary.navBadges.unuploadedTotal ?? 0;
     const aBadge = document.getElementById('nav-approved-badge');
     if (aBadge) aBadge.textContent = summary.navBadges.approvedTotal ?? 0;
+    const sBadge = document.getElementById('nav-safar-badge');
+    if (sBadge && summary.navBadges.safarTotal !== undefined) sBadge.textContent = summary.navBadges.safarTotal;
     applyDayBadgeCounts(
       Number(summary.navBadges.mondayTotal ?? 0),
       Number(summary.navBadges.tuesdayTotal ?? 0)
@@ -793,8 +796,8 @@ function updateBulkBar() {
   bar.classList.toggle('hidden', count === 0);
 }
 
-function openUnattendPopup({ studentIds = [], campusId = null, contactType = 'coordinator', callSessionId = null, label = '' }) {
-  state.pendingUnattendTarget = { studentIds, campusId, contactType, callSessionId };
+function openUnattendPopup({ studentIds = [], campusId = null, safarId = null, contactType = 'coordinator', callSessionId = null, label = '' }) {
+  state.pendingUnattendTarget = { studentIds, campusId, safarId, contactType, callSessionId };
   document.getElementById('unattend-target-label').textContent = label
     ? `Institution: ${label}`
     : 'Tap the reason below to save immediately:';
@@ -1250,6 +1253,7 @@ function switchView(viewName) {
   const titles = {
     dashboard: 'CALL MANAGEMENT — Dashboard & Calling Queue',
     unuploaded: 'Winners Unuploaded Campuses (373 Institutions)',
+    'kerala-safar': 'Kerala Safar — Campus Call Panel',
     'approved-dated': 'Approved Dated — Handled & Attended Calls',
     'call-monday': 'Call for Monday — Scheduled Establishments',
     'call-tuesday': 'Call for Tuesday — Scheduled Establishments',
@@ -1262,6 +1266,7 @@ function switchView(viewName) {
   document.getElementById('view-title').textContent = titles[viewName] || 'CALL MANAGEMENT';
 
   if (viewName === 'unuploaded') loadUnuploadedCampuses();
+  if (viewName === 'kerala-safar') loadKeralaSafar();
   if (viewName === 'approved-dated') loadApprovedDated();
   if (viewName === 'call-monday') loadScheduledDay('Monday');
   if (viewName === 'call-tuesday') loadScheduledDay('Tuesday');
@@ -1925,8 +1930,246 @@ async function quickSaveCampusCall(campusId, callOutcome) {
   }
 }
 
+async function loadKeralaSafar() {
+  const search = document.getElementById('safar-filter-search')?.value.trim() || '';
+  const safarDay = document.getElementById('safar-filter-day')?.value || '';
+  const status = document.getElementById('safar-filter-status')?.value || '';
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (safarDay) params.set('safarDay', safarDay);
+  if (status) params.set('status', status);
+
+  const cacheKey = state.user?.id ? `ihqa_safar_cache_${state.user.id}` : null;
+  if (cacheKey && !params.toString() && !(state.safarCampuses || []).length) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached?.rows) {
+        state.allSafarCampuses = cached.rows || [];
+        applySafarPayload(cached, status);
+      }
+    } catch (_) {}
+  }
+
+  const data = await api(`/api/safar?${params.toString()}`);
+  if (cacheKey && !params.toString()) {
+    state.allSafarCampuses = data.rows || [];
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch (_) {}
+  }
+  applySafarPayload(data, status);
+}
+
+function applySafarPayload(data, status) {
+  const daySel = document.getElementById('safar-filter-day');
+  if (daySel && data.safarDays) {
+    const prev = daySel.value;
+    daySel.innerHTML = `<option value="">All Safar Days</option>${data.safarDays
+      .map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
+      .join('')}`;
+    daySel.value = prev;
+  }
+
+  const badge = document.getElementById('nav-safar-badge');
+  if (badge) badge.textContent = data.overallTotal ?? data.stats?.total ?? data.total;
+  const lbl = document.getElementById('safar-total-label');
+  if (lbl) lbl.textContent = `${data.total} campuses`;
+
+  const s = data.stats || { total: 0, pending: 0, attended: 0, unattended: 0, callsMade: 0 };
+  const kpiHtml = [
+    { label: 'Total Campuses', value: s.total || 0, cls: '', filterStatus: '' },
+    { label: 'Pending Calls', value: s.pending || 0, cls: 'warn', filterStatus: 'PENDING_ALL' },
+    { label: 'Attended', value: s.attended || 0, cls: 'success', filterStatus: 'Successfully Contacted' },
+    { label: 'Unattended', value: s.unattended || 0, cls: 'warn', filterStatus: 'UNATTENDED' },
+    { label: 'Calls Made', value: s.callsMade || 0, cls: '', filterStatus: 'CALLS_MADE' },
+  ]
+    .map((c) => {
+      const isActive = status === c.filterStatus && c.filterStatus !== '';
+      return `<div class="kpi-card clickable ${c.cls} ${isActive ? 'kpi-active' : ''}" data-safar-kpi-status="${escapeHtml(c.filterStatus)}" title="Click to view ${escapeHtml(c.label)}">
+        <div class="kpi-label">${escapeHtml(c.label)}</div>
+        <div class="kpi-value">${c.value}</div>
+      </div>`;
+    })
+    .join('');
+
+  const kpiGrid = document.getElementById('safar-kpi-grid');
+  if (kpiGrid) {
+    kpiGrid.innerHTML = kpiHtml;
+    kpiGrid.querySelectorAll('.kpi-card.clickable').forEach((card) => {
+      card.addEventListener('click', () => {
+        const targetStatus = card.dataset.safarKpiStatus ?? '';
+        const statusSel = document.getElementById('safar-filter-status');
+        if (statusSel) statusSel.value = targetStatus;
+        kpiGrid.querySelectorAll('.kpi-card.clickable').forEach((c) => {
+          c.classList.toggle('kpi-active', (c.dataset.safarKpiStatus ?? '') === targetStatus && targetStatus !== '');
+        });
+        if (Array.isArray(state.allSafarCampuses) && state.allSafarCampuses.length) {
+          const filtered = state.allSafarCampuses.filter((r) => {
+            if (!targetStatus) return true;
+            if (targetStatus === 'PENDING_ALL') {
+              return ['Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled'].includes(r.communication_status);
+            }
+            if (targetStatus === 'Successfully Contacted') {
+              return ['Successfully Contacted', 'Follow-up Completed'].includes(r.communication_status);
+            }
+            if (targetStatus === 'UNATTENDED') {
+              return Number(r.valid_attempt_count || 0) > 0 && !['Successfully Contacted', 'Follow-up Completed'].includes(r.communication_status);
+            }
+            if (targetStatus === 'CALLS_MADE') {
+              return Number(r.valid_attempt_count || 0) > 0 || ['Successfully Contacted', 'Follow-up Completed'].includes(r.communication_status);
+            }
+            return r.communication_status === targetStatus;
+          });
+          state.safarCampuses = filtered;
+          if (lbl) lbl.textContent = `${filtered.length} campuses`;
+          renderKeralaSafar(filtered);
+        }
+        document.getElementById('safar-tbody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        loadKeralaSafar();
+      });
+    });
+  }
+
+  state.safarCampuses = data.rows || [];
+  renderKeralaSafar(state.safarCampuses);
+}
+
+function renderKeralaSafar(rows) {
+  const tbody = document.getElementById('safar-tbody');
+  if (!tbody) return;
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="muted">No Kerala Safar campuses match the active filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((c) => {
+      const cleanPhone1 = String(c.contact_number || '').replace(/[^\d+]/g, '');
+      const cleanPhone2 = String(c.contact_number_2 || '').replace(/[^\d+]/g, '');
+      const loc = [c.place, c.safar_day].filter(Boolean).join(' · ');
+      const isAttended =
+        c.communication_status === 'Successfully Contacted' ||
+        c.communication_status === 'Follow-up Completed';
+
+      const actionHtml = isAttended
+        ? `<div class="row-action-btns is-attended">
+            <button type="button" class="btn btn-sm row-attend-btn attended-done" disabled title="Call marked as Attended">${ICONS.check} Attended</button>
+            <button type="button" class="btn btn-sm row-undo-btn safar-undo-btn" data-id="${c.id}" title="Undo Attended — Revert to previous status">↩ Undo</button>
+          </div>`
+        : `<div class="row-action-btns">
+            <button type="button" class="btn btn-sm row-attend-btn safar-attend-btn" data-id="${c.id}" title="Mark call attended and save">${ICONS.check} Attend</button>
+            <button type="button" class="btn btn-sm row-unattend-btn safar-unattend-btn" data-id="${c.id}" data-label="${escapeHtml(c.campus_name)}" title="Select unattended reason and save">${ICONS.x} Unattend</button>
+          </div>`;
+
+      return `<tr>
+        <td data-label="#"><strong>${escapeHtml(c.serial_no)}</strong></td>
+        <td data-label="Campus & Safar Day">
+          <div class="inst-title">${escapeHtml(c.campus_name)}</div>
+          <div class="inst-loc">${escapeHtml(loc)}</div>
+        </td>
+        <td data-label="Contact Person & Number">
+          <div class="sup-name">${escapeHtml(c.contact_person || '-')}</div>
+          <div class="sup-contact">
+            ${cleanPhone1 ? `<a href="tel:${escapeHtml(cleanPhone1)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(c.contact_number)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone1))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">${ICONS.message} WhatsApp</a>` : '<span class="muted">No phone</span>'}
+          </div>
+          ${c.contact_person_2 || cleanPhone2 ? `<div class="sup-name" style="margin-top:6px;font-size:12px">${escapeHtml(c.contact_person_2 || 'Contact 2')}</div>
+          <div class="sup-contact">
+            ${cleanPhone2 ? `<a href="tel:${escapeHtml(cleanPhone2)}" class="sup-phone-link" title="Tap to call">${ICONS.phone} ${escapeHtml(c.contact_number_2)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone2))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">${ICONS.message} WhatsApp</a>` : ''}
+          </div>` : ''}
+        </td>
+        <td data-label="Course & Students">
+          <div class="small" style="font-weight:600">${escapeHtml(c.course || '-')}</div>
+          <div class="small muted">${c.students_count !== null && c.students_count !== undefined ? `${escapeHtml(c.students_count)} students` : '-'} ${c.pdf_status ? `· <span class="badge badge-neutral">${escapeHtml(c.pdf_status)}</span>` : ''}</div>
+        </td>
+        <td data-label="Call Status & Action">
+          <div style="margin-bottom:6px">
+            <span class="badge ${statusBadgeClass(c.communication_status)}">${escapeHtml(c.communication_status)}</span>
+            ${c.valid_attempt_count > 0 ? `<span class="badge badge-neutral">${c.valid_attempt_count} attempts</span>` : ''}
+            ${c.last_call_outcome && c.last_call_outcome !== 'Successfully Contacted' ? `<div class="small muted" style="margin-top:2px">${escapeHtml(c.last_call_outcome)}</div>` : ''}
+          </div>
+          ${actionHtml}
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  tbody.querySelectorAll('.safar-attend-btn').forEach((btn) => {
+    btn.addEventListener('click', () => quickSaveSafarCall(Number(btn.dataset.id), 'Successfully Contacted'));
+  });
+  tbody.querySelectorAll('.safar-unattend-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openUnattendPopup({
+        safarId: Number(btn.dataset.id),
+        label: btn.dataset.label || '',
+      });
+    });
+  });
+  tbody.querySelectorAll('.safar-undo-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.id);
+      const prevRows = (state.safarCampuses || []).map((r) => ({ ...r }));
+      state.safarCampuses = (state.safarCampuses || []).map((r) =>
+        Number(r.id) === id
+          ? {
+              ...r,
+              communication_status: Number(r.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call',
+              last_call_outcome: null,
+            }
+          : r
+      );
+      renderKeralaSafar(state.safarCampuses);
+      showToast('↩ Call reverted to Pending');
+      try {
+        await api(`/api/safar/${id}/calls/undo`, { method: 'POST' });
+        loadKeralaSafar();
+      } catch (err) {
+        state.safarCampuses = prevRows;
+        renderKeralaSafar(state.safarCampuses);
+        showToast(err.message);
+      }
+    });
+  });
+}
+
+async function quickSaveSafarCall(safarId, callOutcome) {
+  const prevRows = (state.safarCampuses || []).map((r) => ({ ...r }));
+  const isAttended = callOutcome === 'Successfully Contacted';
+  state.safarCampuses = (state.safarCampuses || []).map((r) =>
+    Number(r.id) === Number(safarId)
+      ? {
+          ...r,
+          communication_status: isAttended ? 'Successfully Contacted' : 'Not Connected / Retrying',
+          last_call_outcome: callOutcome,
+          valid_attempt_count: isAttended ? r.valid_attempt_count : Number(r.valid_attempt_count || 0) + 1,
+        }
+      : r
+  );
+  renderKeralaSafar(state.safarCampuses);
+  showToast(isAttended ? 'Saved: Attended' : `Saved: ${callOutcome}`);
+
+  try {
+    await api(`/api/safar/${safarId}/calls`, {
+      method: 'POST',
+      body: JSON.stringify({ callOutcome }),
+    });
+    loadKeralaSafar();
+  } catch (err) {
+    state.safarCampuses = prevRows;
+    renderKeralaSafar(state.safarCampuses);
+    showToast(err.message);
+  }
+}
+
 // Event Wiring
 document.addEventListener('DOMContentLoaded', () => {
+  let safarSearchTimer = null;
+  document.getElementById('safar-filter-search')?.addEventListener('input', () => {
+    clearTimeout(safarSearchTimer);
+    safarSearchTimer = setTimeout(loadKeralaSafar, 240);
+  });
+  document.getElementById('safar-filter-day')?.addEventListener('change', loadKeralaSafar);
+  document.getElementById('safar-filter-status')?.addEventListener('change', loadKeralaSafar);
   document.querySelectorAll('[data-demo-user]').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.getElementById('login-username').value = btn.dataset.demoUser;
@@ -2280,11 +2523,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.unattend-choice-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       if (!state.pendingUnattendTarget) return;
-      const { studentIds, campusId, contactType, callSessionId } = state.pendingUnattendTarget;
+      const { studentIds, campusId, safarId, contactType, callSessionId } = state.pendingUnattendTarget;
       const outcome = btn.dataset.outcome;
       document.getElementById('unattend-modal').classList.add('hidden');
       state.pendingUnattendTarget = null;
-      if (campusId) {
+      if (safarId) {
+        await quickSaveSafarCall(safarId, outcome);
+      } else if (campusId) {
         await quickSaveCampusCall(campusId, outcome);
       } else {
         await quickSaveCallOutcome(studentIds, outcome, contactType, callSessionId);
