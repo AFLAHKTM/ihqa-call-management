@@ -1934,11 +1934,13 @@ async function loadKeralaSafar() {
   const search = document.getElementById('safar-filter-search')?.value.trim() || '';
   const safarDay = document.getElementById('safar-filter-day')?.value || '';
   const status = document.getElementById('safar-filter-status')?.value || '';
+  const staffId = state.safarStaffId || '';
 
   const params = new URLSearchParams();
   if (search) params.set('search', search);
   if (safarDay) params.set('safarDay', safarDay);
   if (status) params.set('status', status);
+  if (staffId) params.set('staffId', staffId);
 
   const cacheKey = state.user?.id ? `ihqa_safar_cache_${state.user.id}` : null;
   if (cacheKey && !params.toString() && !(state.safarCampuses || []).length) {
@@ -1975,6 +1977,35 @@ function applySafarPayload(data, status) {
   if (badge) badge.textContent = data.overallTotal ?? data.stats?.total ?? data.total;
   const lbl = document.getElementById('safar-total-label');
   if (lbl) lbl.textContent = `${data.total} campuses`;
+
+  const staffPillsEl = document.getElementById('safar-staff-pills');
+  const activeSafarStaff = state.safarStaffId || '';
+  if (staffPillsEl && data.staffBreakdown && data.staffBreakdown.length > 0) {
+    const allSafarTotal = data.overallTotal ?? data.stats?.total ?? data.total;
+    staffPillsEl.innerHTML = [
+      `<button type="button" class="pill-filter ${!activeSafarStaff ? 'active' : ''}" data-safar-staff="">All (${allSafarTotal})</button>`,
+      ...data.staffBreakdown.map(
+        (st) =>
+          `<button type="button" class="pill-filter ${String(activeSafarStaff) === String(st.id) ? 'active' : ''}" data-safar-staff="${st.id}">${escapeHtml(st.full_name)} (${st.count})</button>`
+      ),
+    ].join('');
+    staffPillsEl.querySelectorAll('.pill-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        staffPillsEl.querySelectorAll('.pill-filter').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.safarStaffId = btn.dataset.safarStaff || '';
+        if (Array.isArray(state.allSafarCampuses) && state.allSafarCampuses.length) {
+          const filtered = state.safarStaffId
+            ? state.allSafarCampuses.filter((r) => String(r.assigned_staff_id) === String(state.safarStaffId))
+            : state.allSafarCampuses;
+          state.safarCampuses = filtered;
+          if (lbl) lbl.textContent = `${filtered.length} campuses`;
+          renderKeralaSafar(filtered);
+        }
+        loadKeralaSafar();
+      });
+    });
+  }
 
   const s = data.stats || { total: 0, pending: 0, attended: 0, unattended: 0, callsMade: 0 };
   const kpiHtml = [
@@ -2086,6 +2117,7 @@ function renderKeralaSafar(rows) {
           <div style="margin-bottom:6px">
             <span class="badge ${statusBadgeClass(c.communication_status)}">${escapeHtml(c.communication_status)}</span>
             ${c.valid_attempt_count > 0 ? `<span class="badge badge-neutral">${c.valid_attempt_count} attempts</span>` : ''}
+            ${c.assigned_staff_name ? `<span class="badge badge-neutral">${escapeHtml(c.assigned_staff_name)}</span>` : ''}
             ${c.last_call_outcome && c.last_call_outcome !== 'Successfully Contacted' ? `<div class="small muted" style="margin-top:2px">${escapeHtml(c.last_call_outcome)}</div>` : ''}
           </div>
           ${actionHtml}

@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { getDb } = require('../db/database');
+const { ROLES } = require('../constants');
 const { logAudit } = require('../services/auditService');
 
 const router = express.Router();
@@ -9,41 +10,58 @@ router.use(requireAuth);
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const { search = '', safarDay = '', status = '' } = req.query;
+  const { search = '', safarDay = '', status = '', staffId = '' } = req.query;
 
   const where = [];
   const params = [];
 
+  if (req.user.role === ROLES.CALLING_STAFF) {
+    where.push('k.assigned_staff_id = ?');
+    params.push(req.user.id);
+  } else if (staffId) {
+    where.push('k.assigned_staff_id = ?');
+    params.push(Number(staffId));
+  }
+
   if (search) {
     const q = `%${search.trim()}%`;
     where.push(
-      '(campus_name LIKE ? OR place LIKE ? OR safar_day LIKE ? OR contact_person LIKE ? OR contact_number LIKE ? OR contact_person_2 LIKE ? OR contact_number_2 LIKE ?)'
+      '(k.campus_name LIKE ? OR k.place LIKE ? OR k.safar_day LIKE ? OR k.contact_person LIKE ? OR k.contact_number LIKE ? OR k.contact_person_2 LIKE ? OR k.contact_number_2 LIKE ?)'
     );
     params.push(q, q, q, q, q, q, q);
   }
 
   if (safarDay) {
-    where.push('safar_day = ?');
+    where.push('k.safar_day = ?');
     params.push(safarDay);
   }
 
   if (status) {
     if (status === 'PENDING_ALL') {
-      where.push("communication_status IN ('Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled')");
+      where.push("k.communication_status IN ('Pending First Call', 'Not Connected / Retrying', 'Callback Scheduled')");
     } else if (status === 'UNATTENDED') {
-      where.push("valid_attempt_count > 0 AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
+      where.push("k.valid_attempt_count > 0 AND k.communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed')");
     } else if (status === 'CALLS_MADE') {
-      where.push("(valid_attempt_count > 0 OR communication_status IN ('Successfully Contacted', 'Follow-up Completed'))");
+      where.push("(k.valid_attempt_count > 0 OR k.communication_status IN ('Successfully Contacted', 'Follow-up Completed'))");
     } else {
-      where.push('communication_status = ?');
+      where.push('k.communication_status = ?');
       params.push(status);
     }
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const rows = db
-    .prepare(`SELECT * FROM kerala_safar_campuses ${whereSql} ORDER BY serial_no ASC`)
+    .prepare(
+      `SELECT k.*, u.full_name AS assigned_staff_name, u.username AS assigned_staff_username
+       FROM kerala_safar_campuses k
+       LEFT JOIN users u ON u.id = k.assigned_staff_id
+       ${whereSql}
+       ORDER BY k.serial_no ASC`
+    )
     .all(...params);
+
+  const scopeWhere = req.user.role === ROLES.CALLING_STAFF ? 'WHERE assigned_staff_id = ?' : '';
+  const scopeParams = req.user.role === ROLES.CALLING_STAFF ? [req.user.id] : [];
 
   const stats = db
     .prepare(
@@ -53,20 +71,36 @@ router.get('/', (req, res) => {
         SUM(CASE WHEN communication_status IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS attended,
         SUM(CASE WHEN valid_attempt_count > 0 AND communication_status NOT IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS unattended,
         SUM(CASE WHEN valid_attempt_count > 0 OR communication_status IN ('Successfully Contacted', 'Follow-up Completed') THEN 1 ELSE 0 END) AS callsMade
-       FROM kerala_safar_campuses`
+       FROM kerala_safar_campuses
+       ${scopeWhere}`
     )
-    .get();
+    .get(...scopeParams);
 
   const safarDays = db
-    .prepare('SELECT safar_day FROM kerala_safar_campuses GROUP BY safar_day ORDER BY MIN(serial_no) ASC')
-    .all()
+    .prepare(`SELECT safar_day FROM kerala_safar_campuses ${scopeWhere} GROUP BY safar_day ORDER BY MIN(serial_no) ASC`)
+    .all(...scopeParams)
     .map((r) => r.safar_day);
+
+  const orderRank = { kashif: 1, salman: 2, suhail: 3 };
+  const staffBreakdown =
+    req.user.role === ROLES.CALLING_STAFF
+      ? []
+      : db
+          .prepare(
+            `SELECT u.id, u.username, u.full_name, COUNT(k.id) AS count
+             FROM kerala_safar_campuses k
+             JOIN users u ON u.id = k.assigned_staff_id
+             GROUP BY u.id, u.username, u.full_name`
+          )
+          .all()
+          .sort((a, b) => (orderRank[a.username] || 99) - (orderRank[b.username] || 99));
 
   res.json({
     rows,
     total: rows.length,
     overallTotal: stats.total || 0,
     safarDays,
+    staffBreakdown,
     stats,
   });
 });
@@ -79,6 +113,9 @@ router.post('/:id/calls', (req, res) => {
   const campus = db.prepare('SELECT * FROM kerala_safar_campuses WHERE id = ?').get(id);
   if (!campus) {
     return res.status(404).json({ error: 'Kerala Safar campus not found' });
+  }
+  if (req.user.role === ROLES.CALLING_STAFF && campus.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const isAttended = callOutcome === 'Successfully Contacted';
@@ -117,6 +154,9 @@ router.post('/:id/calls/undo', (req, res) => {
   const campus = db.prepare('SELECT * FROM kerala_safar_campuses WHERE id = ?').get(id);
   if (!campus) {
     return res.status(404).json({ error: 'Kerala Safar campus not found' });
+  }
+  if (req.user.role === ROLES.CALLING_STAFF && campus.assigned_staff_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const revertedStatus = Number(campus.valid_attempt_count || 0) > 0 ? 'Not Connected / Retrying' : 'Pending First Call';

@@ -196,6 +196,7 @@ CREATE TABLE IF NOT EXISTS kerala_safar_campuses (
   course TEXT,
   students_count INTEGER,
   pdf_status TEXT,
+  assigned_staff_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   communication_status TEXT NOT NULL DEFAULT 'Pending First Call',
   valid_attempt_count INTEGER NOT NULL DEFAULT 0,
   last_call_outcome TEXT,
@@ -401,6 +402,30 @@ function ensureStaffAndSplitUnuploaded(db) {
           s.students_count !== undefined ? Number(s.students_count) : null,
           s.pdf_status || ''
         );
+      }
+      db.exec('COMMIT');
+    }
+
+    const safarCols = db
+      .prepare('PRAGMA table_info(kerala_safar_campuses)')
+      .all()
+      .map((c) => c.name);
+    if (!safarCols.includes('assigned_staff_id')) {
+      db.exec('ALTER TABLE kerala_safar_campuses ADD COLUMN assigned_staff_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+    }
+
+    const unassignedSafar = db
+      .prepare('SELECT id FROM kerala_safar_campuses WHERE assigned_staff_id IS NULL ORDER BY serial_no ASC')
+      .all();
+    if (unassignedSafar.length > 0 && staffIds.length === 3) {
+      const c1 = Math.ceil(unassignedSafar.length / 3); // 117
+      const c2 = Math.ceil((unassignedSafar.length - c1) / 2); // 116
+      const assignSafarStmt = db.prepare('UPDATE kerala_safar_campuses SET assigned_staff_id = ? WHERE id = ?');
+      db.exec('BEGIN');
+      for (let i = 0; i < unassignedSafar.length; i += 1) {
+        const targetStaff =
+          i < c1 ? staffIds[0] : i < c1 + c2 ? staffIds[1] : staffIds[2];
+        assignSafarStmt.run(targetStaff, unassignedSafar[i].id);
       }
       db.exec('COMMIT');
     }
