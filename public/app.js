@@ -1615,10 +1615,10 @@ async function loadScheduledDay(day) {
       return p.toString();
     };
     document.getElementById(`${key}-export-csv`).addEventListener('click', () => {
-      window.open(`/api/students/scheduled-day/export?${buildExportParams()}&format=csv`);
+      window.location.href = `/api/students/scheduled-day/export?${buildExportParams()}&format=csv`;
     });
     document.getElementById(`${key}-export-excel`).addEventListener('click', () => {
-      window.open(`/api/students/scheduled-day/export?${buildExportParams()}&format=excel`);
+      window.location.href = `/api/students/scheduled-day/export?${buildExportParams()}&format=excel`;
     });
     document.getElementById(`${key}-export-print`).addEventListener('click', () => {
       window.print();
