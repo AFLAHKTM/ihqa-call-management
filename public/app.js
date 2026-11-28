@@ -126,44 +126,7 @@ async function loadAllData() {
   await Promise.all([loadDashboardAndQueue(), loadNotifications()]);
 }
 
-async function loadDashboardAndQueue() {
-  const tbody = document.getElementById('students-tbody');
-  const queueBadge = document.getElementById('queue-count-badge');
-  if (tbody && !state.students.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Loading records...</td></tr>';
-  }
-  if (queueBadge && !state.students.length) {
-    queueBadge.textContent = '...';
-  }
-  const params = new URLSearchParams();
-  const fQuickSearch = document.getElementById('f-quick-search')?.value?.trim();
-  const fDistrict = document.getElementById('f-district').value;
-  const fInstitution = document.getElementById('f-institution').value;
-  const fStudentName = document.getElementById('f-student-name').value;
-  const fRegNo = document.getElementById('f-reg-no').value;
-  const fStaff = document.getElementById('f-staff').value;
-  const fStatus = document.getElementById('f-status').value;
-  const fAttempts = document.getElementById('f-attempts').value;
-  const fDateFrom = document.getElementById('f-date-from').value;
-  const fDateTo = document.getElementById('f-date-to').value;
-
-  if (fQuickSearch) params.set('search', fQuickSearch);
-  if (state.activeSection) params.set('examCategory', state.activeSection);
-  if (fDistrict) params.set('district', fDistrict);
-  if (fInstitution) params.set('institution', fInstitution);
-  if (fStudentName) params.set('studentName', fStudentName);
-  if (fRegNo) params.set('registrationNumber', fRegNo);
-  if (fStaff) params.set('assignedStaffId', fStaff);
-  if (fStatus) params.set('callStatus', fStatus);
-  if (fAttempts !== '') params.set('attemptCount', fAttempts);
-  if (fDateFrom) params.set('dateFrom', fDateFrom);
-  if (fDateTo) params.set('dateTo', fDateTo);
-
-  const [summary, listData] = await Promise.all([
-    api(`/api/dashboard/summary?${params.toString()}`),
-    api(`/api/students?${params.toString()}`),
-  ]);
-
+function applyDashboardPayload(summary, listData) {
   state.filtersMeta = summary.filtersMeta;
   if (summary.navBadges) {
     const uBadge = document.getElementById('nav-unuploaded-badge');
@@ -177,7 +140,7 @@ async function loadDashboardAndQueue() {
   }
   state.workflowConfig = summary.workflowConfig;
   state.lastStats = summary.stats;
-  state.students = listData.rows;
+  state.students = listData.rows || [];
   document.getElementById('queue-count-badge').textContent = listData.total;
   if (summary.sectionCounts) {
     document.getElementById('cnt-all').textContent = summary.sectionCounts.all;
@@ -208,7 +171,67 @@ async function loadDashboardAndQueue() {
   }
 
   renderKpis(summary.stats);
-  renderStudentsTable(listData.rows);
+  renderStudentsTable(state.students);
+}
+
+async function loadDashboardAndQueue() {
+  const params = new URLSearchParams();
+  const fQuickSearch = document.getElementById('f-quick-search')?.value?.trim();
+  const fDistrict = document.getElementById('f-district').value;
+  const fInstitution = document.getElementById('f-institution').value;
+  const fStudentName = document.getElementById('f-student-name').value;
+  const fRegNo = document.getElementById('f-reg-no').value;
+  const fStaff = document.getElementById('f-staff').value;
+  const fStatus = document.getElementById('f-status').value;
+  const fAttempts = document.getElementById('f-attempts').value;
+  const fDateFrom = document.getElementById('f-date-from').value;
+  const fDateTo = document.getElementById('f-date-to').value;
+
+  if (fQuickSearch) params.set('search', fQuickSearch);
+  if (state.activeSection) params.set('examCategory', state.activeSection);
+  if (fDistrict) params.set('district', fDistrict);
+  if (fInstitution) params.set('institution', fInstitution);
+  if (fStudentName) params.set('studentName', fStudentName);
+  if (fRegNo) params.set('registrationNumber', fRegNo);
+  if (fStaff) params.set('assignedStaffId', fStaff);
+  if (fStatus) params.set('callStatus', fStatus);
+  if (fAttempts !== '') params.set('attemptCount', fAttempts);
+  if (fDateFrom) params.set('dateFrom', fDateFrom);
+  if (fDateTo) params.set('dateTo', fDateTo);
+
+  const cacheKey = state.user?.id ? `ihqa_dash_cache_${state.user.id}` : null;
+  let hydrated = false;
+  if (cacheKey && !params.toString() && !state.students.length) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached?.summary && cached?.listData) {
+        applyDashboardPayload(cached.summary, cached.listData);
+        hydrated = true;
+      }
+    } catch (_) {}
+  }
+
+  const tbody = document.getElementById('students-tbody');
+  const queueBadge = document.getElementById('queue-count-badge');
+  if (!hydrated && tbody && !state.students.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Loading records...</td></tr>';
+  }
+  if (!hydrated && queueBadge && !state.students.length) {
+    queueBadge.textContent = '...';
+  }
+
+  const [summary, listData] = await Promise.all([
+    api(`/api/dashboard/summary?${params.toString()}`),
+    api(`/api/students?${params.toString()}`),
+  ]);
+
+  if (cacheKey && !params.toString()) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ summary, listData }));
+    } catch (_) {}
+  }
+
+  applyDashboardPayload(summary, listData);
 }
 
 function populateFilterDropdowns(meta) {
@@ -1337,7 +1360,26 @@ async function loadUnuploadedCampuses() {
   if (staffId) params.set('staffId', staffId);
   if (status) params.set('status', status);
 
+  const cacheKey = state.user?.id ? `ihqa_campuses_cache_${state.user.id}` : null;
+  if (cacheKey && !params.toString() && !(state.unuploadedCampuses || []).length) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached?.rows) {
+        applyCampusesPayload(cached, staffId, status);
+      }
+    } catch (_) {}
+  }
+
   const data = await api(`/api/campuses?${params.toString()}`);
+  if (cacheKey && !params.toString()) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(data));
+    } catch (_) {}
+  }
+  applyCampusesPayload(data, staffId, status);
+}
+
+function applyCampusesPayload(data, staffId, status) {
 
   const distSel = document.getElementById('u-filter-district');
   if (distSel && data.districts) {
@@ -1667,6 +1709,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const doLogout = async () => {
     await api('/api/auth/logout', { method: 'POST' });
     state.user = null;
+    state.students = [];
+    state.unuploadedCampuses = [];
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
   };
