@@ -13,11 +13,15 @@ const state = {
 };
 
 async function api(url, options = {}) {
-  const res = await fetch(url, {
+  const fetchOpts = {
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
-  });
+  };
+  if (!fetchOpts.signal && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+    fetchOpts.signal = AbortSignal.timeout(12000);
+  }
+  const res = await fetch(url, fetchOpts);
   const text = await res.text();
   let data = {};
   try {
@@ -259,19 +263,37 @@ async function loadDashboardAndQueue() {
     queueBadge.textContent = '...';
   }
 
-  const [summary, listData] = await Promise.all([
-    api(`/api/dashboard/summary?${params.toString()}`),
-    api(`/api/students?${params.toString()}`),
-  ]);
-
-  if (cacheKey && !params.toString()) {
-    state.allStudents = listData.rows || [];
+  try {
+    let summary, listData;
     try {
-      localStorage.setItem(cacheKey, JSON.stringify({ summary, listData }));
-    } catch (_) {}
-  }
+      [summary, listData] = await Promise.all([
+        api(`/api/dashboard/summary?${params.toString()}`),
+        api(`/api/students?${params.toString()}`),
+      ]);
+    } catch (firstErr) {
+      await new Promise((r) => setTimeout(r, 500));
+      [summary, listData] = await Promise.all([
+        api(`/api/dashboard/summary?${params.toString()}`),
+        api(`/api/students?${params.toString()}`),
+      ]);
+    }
 
-  applyDashboardPayload(summary, listData);
+    if (cacheKey && !params.toString()) {
+      state.allStudents = listData.rows || [];
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ summary, listData }));
+      } catch (_) {}
+    }
+
+    applyDashboardPayload(summary, listData);
+  } catch (err) {
+    if (!hydrated && tbody && !state.students.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="muted">Unable to load records (${escapeHtml(err.message)}). Click Refresh to retry.</td></tr>`;
+    }
+    if (!hydrated && queueBadge && !state.students.length) {
+      queueBadge.textContent = '0';
+    }
+  }
 }
 
 function populateFilterDropdowns(meta) {

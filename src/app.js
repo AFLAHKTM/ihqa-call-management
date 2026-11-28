@@ -31,10 +31,14 @@ function createApp() {
     }
 
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
-    try {
-      await pullIfNewer(isMutation);
-    } catch (err) {
-      console.warn('Cloud sync pull warning:', err.message);
+    if (isMutation) {
+      try {
+        await pullIfNewer(true);
+      } catch (err) {
+        console.warn('Cloud sync pull warning:', err.message);
+      }
+    } else {
+      pullIfNewer(false).catch((err) => console.warn('Cloud sync background pull warning:', err.message));
     }
 
     if (isMutation) {
