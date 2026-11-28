@@ -65,6 +65,10 @@
           <span>Winners Unuploaded Campuses</span>
           <span id="nav-unuploaded-badge" class="pill-count">0</span>
         </button>
+        <button class="nav-item" data-view="approved-dated">
+          <span>Approved Dated</span>
+          <span id="nav-approved-badge" class="pill-count">0</span>
+        </button>
         <button class="nav-item" data-view="followups">
           <span>Callbacks &amp; Follow-Ups</span>
         </button>
@@ -280,6 +284,47 @@
                 </tr>
               </thead>
               <tbody id="unuploaded-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: APPROVED DATED -->
+      <section id="view-approved-dated" class="view-section hidden">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Approved Dated</h3>
+              <div class="muted small">Institutions &amp; individuals whose calls were handled &amp; approved (Shahid Adany, Usman Adany &amp; Saeed Adany)</div>
+            </div>
+            <div class="header-actions">
+              <span id="approved-total-label" class="badge badge-success">0 approved</span>
+            </div>
+          </div>
+
+          <div id="approved-staff-pills" class="quick-pills admin-supervisor-only" style="margin-bottom:10px"></div>
+
+          <div class="filters-bar" style="margin-bottom:12px">
+            <input type="text" id="a-filter-search" placeholder="Search institution, student, supervisor, phone..." />
+            <select id="a-filter-district">
+              <option value="">All Districts</option>
+            </select>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table mobile-cards">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Institution</th>
+                  <th>Supervisor &amp; Contact</th>
+                  <th>Category &amp; Winner</th>
+                  <th>Handled By</th>
+                  <th>Approved Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="approved-tbody"></tbody>
             </table>
           </div>
         </div>

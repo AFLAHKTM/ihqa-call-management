@@ -130,6 +130,14 @@ async function loadAllData() {
         }
       })
       .catch(() => null),
+    api('/api/students/approved-dated')
+      .then((appMeta) => {
+        if (appMeta?.overallTotal !== undefined) {
+          const badge = document.getElementById('nav-approved-badge');
+          if (badge) badge.textContent = appMeta.overallTotal;
+        }
+      })
+      .catch(() => null),
   ]);
 }
 
@@ -955,6 +963,7 @@ function switchView(viewName) {
   const titles = {
     dashboard: 'CALL MANAGEMENT — Dashboard & Calling Queue',
     unuploaded: 'Winners Unuploaded Campuses (373 Institutions)',
+    'approved-dated': 'Approved Dated — Handled & Attended Calls',
     followups: 'Callbacks, Three-Attempt & Wrong-Number Follow-Ups',
     staff: 'Calling Staff Management & Daily Performance',
     notifications: 'Central Notification Engine & Email Delivery Log',
@@ -964,11 +973,105 @@ function switchView(viewName) {
   document.getElementById('view-title').textContent = titles[viewName] || 'CALL MANAGEMENT';
 
   if (viewName === 'unuploaded') loadUnuploadedCampuses();
+  if (viewName === 'approved-dated') loadApprovedDated();
   if (viewName === 'followups') loadFollowupsView();
   if (viewName === 'staff') loadStaffView();
   if (viewName === 'notifications') loadNotifications();
   if (viewName === 'reports') loadReport();
   if (viewName === 'settings') loadSettingsAndAudit();
+}
+
+async function loadApprovedDated() {
+  const search = document.getElementById('a-filter-search')?.value.trim() || '';
+  const district = document.getElementById('a-filter-district')?.value || '';
+  const staffId = state.approvedStaffId || '';
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (district) params.set('district', district);
+  if (staffId) params.set('staffId', staffId);
+
+  const data = await api(`/api/students/approved-dated?${params.toString()}`);
+
+  const distSel = document.getElementById('a-filter-district');
+  if (distSel && data.districts) {
+    const prev = distSel.value;
+    distSel.innerHTML = `<option value="">All Districts</option>${data.districts
+      .map((d) => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`)
+      .join('')}`;
+    distSel.value = prev;
+  }
+
+  const pillsEl = document.getElementById('approved-staff-pills');
+  if (pillsEl && data.staffBreakdown) {
+    const pills = [
+      `<button type="button" class="pill-filter ${!staffId ? 'active' : ''}" data-a-staff="">All (${data.overallTotal})</button>`,
+      ...data.staffBreakdown.map(
+        (s) =>
+          `<button type="button" class="pill-filter ${String(staffId) === String(s.id) ? 'active' : ''}" data-a-staff="${s.id}">${escapeHtml(s.full_name)} (${s.count})</button>`
+      ),
+    ];
+    pillsEl.innerHTML = pills.join('');
+    pillsEl.querySelectorAll('.pill-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.approvedStaffId = btn.dataset.aStaff || '';
+        loadApprovedDated();
+      });
+    });
+  }
+
+  document.getElementById('nav-approved-badge').textContent = data.overallTotal ?? data.total;
+  document.getElementById('approved-total-label').textContent = `${data.total} approved`;
+
+  renderApprovedDated(data.rows || []);
+}
+
+function renderApprovedDated(rows) {
+  const tbody = document.getElementById('approved-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No approved / attended calls found yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((s, idx) => {
+      const pdfMatch = String(s.registration_number || '').match(/^IHQA-(?:TAF|QIR)-(\d+)$/);
+      const displayNo = pdfMatch ? Number(pdfMatch[1]) : idx + 1;
+      const phone = s.coordinator_mobile || s.student_mobile || '';
+      const cleanPhone = String(phone).replace(/[^\d+]/g, '');
+      const email = s.coordinator_email || s.email || '';
+      const locationLine = [s.institution_place, s.district, 'Kerala'].filter(Boolean).join(', ');
+      const approvedAt = s.last_called_at || s.updated_at || '';
+
+      return `<tr>
+        <td data-label="#"><strong>${displayNo}</strong></td>
+        <td data-label="Institution">
+          <div class="inst-title">${escapeHtml(s.institution_name)}</div>
+          <div class="inst-loc">${escapeHtml(locationLine)}</div>
+        </td>
+        <td data-label="Supervisor & Contact">
+          <div class="sup-name">${escapeHtml(s.coordinator_name || s.student_name)}</div>
+          <div class="sup-contact">
+            ${cleanPhone ? `<a href="tel:${escapeHtml(cleanPhone)}" class="sup-phone-link" title="Tap to call">📞 ${escapeHtml(phone)}</a><a href="${escapeHtml(buildWhatsAppUrl(cleanPhone))}" target="_blank" rel="noopener" class="sup-wa-link" title="Send WhatsApp message">💬 WhatsApp</a>` : '<span class="muted">No phone</span>'}
+            ${email ? `<span class="sup-email"> · ${escapeHtml(email)}</span>` : ''}
+          </div>
+        </td>
+        <td data-label="Category & Winner">
+          <div class="cat-breakdown-label">${escapeHtml(s.exam_category)}:</div>
+          <div class="cat-breakdown-winner">${escapeHtml(s.student_name)}</div>
+        </td>
+        <td data-label="Handled By">
+          <span class="badge badge-neutral">${escapeHtml(s.assigned_staff_name || '-')}</span>
+        </td>
+        <td data-label="Approved Date">
+          <span class="small" style="font-weight:600;color:#065f46">${escapeHtml(approvedAt)}</span>
+        </td>
+        <td data-label="Status">
+          <span class="badge badge-success">✅ Attended</span>
+        </td>
+      </tr>`;
+    })
+    .join('');
 }
 
 async function loadUnuploadedCampuses() {
@@ -1518,6 +1621,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('u-filter-district')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-staff')?.addEventListener('change', loadUnuploadedCampuses);
   document.getElementById('u-filter-status')?.addEventListener('change', loadUnuploadedCampuses);
+
+  let aSearchTimer = null;
+  document.getElementById('a-filter-search')?.addEventListener('input', () => {
+    clearTimeout(aSearchTimer);
+    aSearchTimer = setTimeout(loadApprovedDated, 240);
+  });
+  document.getElementById('a-filter-district')?.addEventListener('change', loadApprovedDated);
 
   const editCampusModal = document.getElementById('edit-campus-modal');
   document.getElementById('close-edit-campus-modal')?.addEventListener('click', () => {
