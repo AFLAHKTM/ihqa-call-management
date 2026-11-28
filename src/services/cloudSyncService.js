@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const path = require('node:path');
 const zlib = require('node:zlib');
 const config = require('../config');
 const { getDb, closeDb, initDatabase } = require('../db/database');
@@ -8,15 +9,79 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrcHVtamlvcWtzc25icnBsZ3BoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0OTcyNzIsImV4cCI6MjA4OTA3MzI3Mn0.PD-yDElsmaZ2l9RynXYUxO_Cw65-PT0f16jpNEXiJN0';
 const SYNC_SECRET = process.env.IHQA_SYNC_KEY || 'ihqa-kerala-sync-2026-secret';
+const DEFAULT_FIREBASE_DATABASE_URL =
+  'https://ihqa-call-management-default-rtdb.asia-southeast1.firebasedatabase.app';
+const RTDB_NODE_PATH = 'ihqa_cloud_state/main';
+const LOCAL_SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', '..', 'firebase-service-account.json');
 
 let localVersion = 0;
 let lastCheckAt = 0;
 let syncQueue = Promise.resolve();
+let rtdbInstance = null;
 
 function withSyncLock(fn) {
   const next = syncQueue.then(fn, fn);
   syncQueue = next.catch(() => {});
   return next;
+}
+
+function getFirebaseServiceAccount() {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON.trim();
+    const parsed = JSON.parse(raw);
+    if (parsed.private_key) {
+      parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+    }
+    return parsed;
+  }
+
+  if (
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  ) {
+    return {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+
+  if (fs.existsSync(LOCAL_SERVICE_ACCOUNT_PATH)) {
+    const parsed = JSON.parse(fs.readFileSync(LOCAL_SERVICE_ACCOUNT_PATH, 'utf8'));
+    if (parsed.private_key) {
+      parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+    }
+    return parsed;
+  }
+
+  return null;
+}
+
+function isFirebaseConfigured() {
+  try {
+    return Boolean(getFirebaseServiceAccount());
+  } catch (_) {
+    return false;
+  }
+}
+
+function getRealtimeDb() {
+  if (rtdbInstance) return rtdbInstance;
+  const serviceAccount = getFirebaseServiceAccount();
+  if (!serviceAccount) return null;
+
+  const { initializeApp, getApps, cert } = require('firebase-admin/app');
+  const { getDatabase } = require('firebase-admin/database');
+  const databaseURL = process.env.FIREBASE_DATABASE_URL || DEFAULT_FIREBASE_DATABASE_URL;
+  if (getApps().length === 0) {
+    initializeApp({
+      credential: cert(serviceAccount),
+      databaseURL,
+    });
+  }
+  rtdbInstance = getDatabase();
+  return rtdbInstance;
 }
 
 function isSyncEnabled() {
@@ -28,7 +93,7 @@ function isSyncEnabled() {
     return false;
   }
   if (!config.dbPath || config.dbPath === ':memory:') return false;
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  return isFirebaseConfigured() || Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
 
 function supabaseHeaders(extra = {}) {
@@ -41,7 +106,30 @@ function supabaseHeaders(extra = {}) {
   };
 }
 
+async function fetchSupabaseSnapshot() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/ihqa_cloud_state?id=eq.main&select=version,db_gzip_base64,updated_at,updated_by`,
+    {
+      method: 'GET',
+      headers: supabaseHeaders(),
+      signal: AbortSignal.timeout(6000),
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Supabase snapshot pull failed: ${res.status}`);
+  }
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
 async function fetchRemoteMeta() {
+  const rtdb = getRealtimeDb();
+  if (rtdb) {
+    const snap = await rtdb.ref(`${RTDB_NODE_PATH}/version`).get();
+    if (!snap.exists()) return null;
+    return { version: snap.val() };
+  }
+
   const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state?id=eq.main&select=version`, {
     method: 'GET',
     headers: supabaseHeaders(),
@@ -55,19 +143,14 @@ async function fetchRemoteMeta() {
 }
 
 async function fetchRemoteSnapshot() {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/ihqa_cloud_state?id=eq.main&select=version,db_gzip_base64`,
-    {
-      method: 'GET',
-      headers: supabaseHeaders(),
-      signal: AbortSignal.timeout(6000),
-    }
-  );
-  if (!res.ok) {
-    throw new Error(`Supabase snapshot pull failed: ${res.status}`);
+  const rtdb = getRealtimeDb();
+  if (rtdb) {
+    const snap = await rtdb.ref(RTDB_NODE_PATH).get();
+    if (!snap.exists()) return null;
+    return snap.val() || null;
   }
-  const rows = await res.json();
-  return rows[0] || null;
+
+  return fetchSupabaseSnapshot();
 }
 
 async function pullIfNewer(force = false, minAgeMs = 15000) {
@@ -143,24 +226,32 @@ async function pushSnapshot(updatedBy = 'system') {
     const rawBuffer = fs.readFileSync(config.dbPath);
     const gzBase64 = zlib.gzipSync(rawBuffer, { level: 1 }).toString('base64');
     const nextVersion = Math.max(localVersion + 1, Date.now());
+    const payload = {
+      version: nextVersion,
+      db_gzip_base64: gzBase64,
+      updated_at: new Date().toISOString(),
+      updated_by: String(updatedBy).slice(0, 100),
+    };
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {
-      method: 'POST',
-      headers: supabaseHeaders({
-        Prefer: 'resolution=merge-duplicates,return=minimal',
-      }),
-      body: JSON.stringify({
-        id: 'main',
-        version: nextVersion,
-        db_gzip_base64: gzBase64,
-        updated_at: new Date().toISOString(),
-        updated_by: String(updatedBy).slice(0, 100),
-      }),
-      signal: AbortSignal.timeout(6000),
-    });
+    const rtdb = getRealtimeDb();
+    if (rtdb) {
+      await rtdb.ref(RTDB_NODE_PATH).set(payload);
+    } else {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/ihqa_cloud_state`, {
+        method: 'POST',
+        headers: supabaseHeaders({
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        }),
+        body: JSON.stringify({
+          id: 'main',
+          ...payload,
+        }),
+        signal: AbortSignal.timeout(6000),
+      });
 
-    if (!res.ok) {
-      throw new Error(`Supabase push failed: ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Supabase push failed: ${res.status}`);
+      }
     }
 
     localVersion = nextVersion;
@@ -186,6 +277,9 @@ async function initCloudSync() {
 
 module.exports = {
   isSyncEnabled,
+  isFirebaseConfigured,
+  getRealtimeDb,
+  fetchSupabaseSnapshot,
   pullIfNewer,
   pushSnapshot,
   initCloudSync,
